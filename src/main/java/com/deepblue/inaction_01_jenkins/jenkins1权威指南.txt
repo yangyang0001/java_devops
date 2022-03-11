@@ -11,37 +11,108 @@
 --------------------------------------------------------------------------------------------------------------------------------------
 任何 持续集成工具的 目的 就是监控 代码版本控制系统(如Git, SVN)
 
-准备
-    一台 Linux 机器
+安装 JENKINS
 
-安装 jdk 环境
-    [root@localhost ~]# java -version
-    java version "1.8.0_321"
-    Java(TM) SE Runtime Environment (build 1.8.0_321-b07)
-    Java HotSpot(TM) 64-Bit Server VM (build 25.321-b07, mixed mode)
+    准备
+        一台 Linux 机器
 
-安装 git
-    yum -y install git-core
+    安装 jdk 环境
+        [root@localhost ~]# java -version
+        java version "1.8.0_321"
+        Java(TM) SE Runtime Environment (build 1.8.0_321-b07)
+        Java HotSpot(TM) 64-Bit Server VM (build 25.321-b07, mixed mode)
 
-    [root@localhost ~]# git --version
-    git version 1.8.3.1
+    安装 git
+        yum -y install git-core
 
-创建 github 账号
+        [root@localhost ~]# git --version
+        git version 1.8.3.1
 
-配置 ssh 秘钥
-    生成 ssh 秘钥
-        参考连接: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
+    创建 github 账号
 
-    ssh-keygen -t ed25519 -C "2017585616@qq.com"
+    配置 ssh 秘钥
+        生成 ssh 秘钥
+            参考连接: https://docs.github.com/en/authentication/connecting-to-github-with-ssh/generating-a-new-ssh-key-and-adding-it-to-the-ssh-agent
 
+        ssh-keygen -t ed25519 -C "2017585616@qq.com"
 
-
-
-
-
-
+    下载副本 到本地库
+        git clone SSH_URL
 
 
+    安装 jenkins
+        参考地址: https://pkg.jenkins.io/redhat-stable/
+
+            export JAVA_HOME=/home/jdk1.8.0_321
+            export JRE_HOME=/home/jdk1.8.0_321/jre
+            export CLASSPATH=$JRE_HOME/lib/rt.jar:$JRE_HOME/lib/ext
+            export PATH=$PATH:$JRE_HOME/bin:$JAVA_HOME/bin
+
+            export M2_HOME=/home/apache-maven-3.6.3
+            export PATH=$PATH:$M2_HOME/bin
+
+
+        下载安装:
+            wget --no-check-certificate -O /etc/yum.repos.d/jenkins.repo https://pkg.jenkins.io/redhat-stable/jenkins.repo
+            rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io.key
+
+            yum -y install epel-release # repository that provides 'daemonize'
+            yum -y install jenkins
+
+
+        修改配置:
+            vim /etc/init.d/jenkins
+
+            添加 jdk 环境变量
+            candidates="
+            /etc/alternatives/java
+            /usr/lib/jvm/java-1.8.0/bin/java
+            /usr/lib/jvm/jre-1.8.0/bin/java
+            /usr/lib/jvm/java-11.0/bin/java
+            /usr/lib/jvm/jre-11.0/bin/java
+            /usr/lib/jvm/java-11-openjdk-amd64
+            /usr/bin/java
+            /home/jdk1.8.0_321/bin/java      // 添加这一行
+            "
+
+        添加 jdk 软连接:
+            ln -s /home/jdk1.8.0_321/bin/java /usr/bin/java
+
+    启动 jenkins
+
+        启动:
+        [root@localhost ~]# service jenkins start
+        Starting jenkins (via systemctl):                          [  确定  ]
+
+        关闭:
+        service jenkins stop
+
+        重启:
+        service jenkins restart
+
+        帮助命令:
+        service jenkins start|stop|status|try-restart|restart|force-reload|reload|probe
+
+
+        安装成功后Jenkins将作为一个守护进程随系统启动
+
+        系统会创建一个 "jenkins" 用户来允许这个服务, 如果改变服务所有者, 同时需要修改/var/log/jenkins, /var/lib/jenkins, 和/var/cache/jenkins的所有者
+
+        启动的时候将从/etc/sysconfig/jenkins获取配置参数
+
+        默认情况下, Jenkins运行在8080端口, 在浏览器中直接访问该端进行服务配置
+
+        Jenkins的RPM仓库配置被加到 /etc/yum.repos.d/jenkins.repo
+
+    首次进入 jenkins:
+        http://192.168.188.20:8080
+
+    在 ui 中完成最初的基础设施!
+
+
+配置 JENKINS
+
+    配置 Maven 配置, JDK, SSH
 
 
 
