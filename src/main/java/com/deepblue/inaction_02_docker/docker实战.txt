@@ -323,7 +323,7 @@ docker 架构:
 
     -------------------------------------------------------------------------------------------------------------------------------------------
 
-    删除已经停止的容器格式: docker rm contaniner_id
+    删除已经停止的容器格式: docker rm container_id
 
     删除容器举例:
     docker rm 467a9c838f2b \
@@ -355,14 +355,14 @@ docker 架构:
     root                6638                6618                0                   01:35               pts/0               00:00:00            /bin/bash
 
 
-    查看容器内容的细节格式: docker inspect contaniner_id
+    查看容器内容的细节格式: docker inspect container_id
     [root@localhost ~]# docker inspect 9deab90f1a73
     结果为一个 json 数组 [.....]
 
 
     再次进入启动中的容器命令:
 
-        进入运行中的容器格式: docker attach contaniner_id
+        进入运行中的容器格式: docker attach container_id
         举例:
         [root@localhost ~]# docker ps
         CONTAINER ID   IMAGE     COMMAND       CREATED        STATUS         PORTS     NAMES
@@ -370,7 +370,7 @@ docker 架构:
         [root@localhost ~]# docker attach 9deab90f1a73
         [root@9deab90f1a73 /]#
 
-        进入运行中的容器格式: docker exec -it contaniner_id /bin/bash     TODO 推荐使用
+        进入运行中的容器格式: docker exec -it container_id /bin/bash     TODO 推荐使用
         举例:
         [root@localhost ~]# docker ps
         CONTAINER ID   IMAGE     COMMAND             CREATED          STATUS         PORTS                                       NAMES
@@ -439,19 +439,290 @@ docker commit 命令:
 --------------------------------------------------------------------------------------------------------------------------------------
 什么是容器数据卷?
     将 docker 容器运行产生的数据 持久化到 文件中, 这中持久化功能的文件 就叫 容器数据卷! 目的实现数据的共享, 类似于 本地主机 和 虚拟机 之间的共享文件夹!
+    共享文件夹中的 文件 能够达到 完全同步的效果! 和重启容器没有关系!
 
 数据卷添加方式:
-    命令添加:
-        命令格式: docker run -it -v /宿主机绝对路径目录:/容器内目录 镜像名称
+    命令添加数据卷:
+        命令格式: docker run -it -v /宿主机绝对路径目录:/容器内目录:权限 镜像名称
 
         举例:
-            docker run -it --name centos0001 -v /host_data:/container_data centos
+            可读可写:
+            docker run -it --name centos0001 -v /mine_data:/container_data centos
 
-    dockerfile 添加:
+            只读:
+            docker run -it --name centos0001 -v /mine_data:/container_data:ro centos
+
+    dockerfile 添加数据卷:
+
+        编写 Dockerfile 的最佳实践地址: https://docs.docker.com/develop/develop-images/dockerfile_best-practices/
+        GitHub 上的参考地址: https://github.com/docker-library
+
+        1、编写 Dockerfile
+        [root@localhost ~]# vim Dockerfile
+            FROM centos
+
+            VOLUME ["/container_data1", "/container_data2"]
+            CMD echo "finished, success"
+            CMD /bin/bash
+
+        2、根据 Dockerfile 创建 自己的镜像
+        [root@localhost ~]# docker build -f /root/Dockerfile -t yangyang0001/centos .
+            Sending build context to Docker daemon  35.84kB
+            Step 1/4 : FROM centos
+             ---> 5d0da3dc9764
+            Step 2/4 : VOLUME ["/container_data1", "/container_data2"]
+             ---> Running in cb52b38e1338
+            Removing intermediate container cb52b38e1338
+             ---> fde550d0138d
+            Step 3/4 : CMD echo "finished, success"
+             ---> Running in 0ea6cd5054cd
+            Removing intermediate container 0ea6cd5054cd
+             ---> c8bec9b838ff
+            Step 4/4 : CMD /bin/bash
+             ---> Running in 6f3b2cd7227d
+            Removing intermediate container 6f3b2cd7227d
+             ---> 1957675f04a6
+            Successfully built 1957675f04a6                 // 创建的 IMAGE_ID
+            Successfully tagged yangyang0001/centos:latest
+
+        3、查看创建的镜像
+        [root@localhost ~]# docker images
+            REPOSITORY            TAG       IMAGE ID       CREATED          SIZE
+            yangyang0001/centos   latest    1957675f04a6   10 seconds ago   231MB       // 此镜像 即为 创建的镜像!
+            yangyang0001/tomcat   1.0       4639dd8d4ea2   9 hours ago      684MB
+            tomcat                latest    7a287e4562ea   8 days ago       680MB
+            nginx                 latest    c919045c4c2b   9 days ago       142MB
+            mongo                 latest    dfda7a2cf273   3 months ago     693MB
+            hello-world           latest    feb5d9fea6a5   5 months ago     13.3kB
+            centos                latest    5d0da3dc9764   5 months ago     231MB
+
+        4、根据创建的镜像 运行一个 新的容器
+            docker run -it --name centos0001 yangyang0001/centos
+
+        5、验证 是否是 共享容器卷 docker inspect container_id 就可以看到如下:
+        "Mounts": [
+                    {
+                        "Type": "volume",
+                        "Name": "7797a375d588146ede3521394fd206b8fab53b651a1dbceecf4adccc341b94e0",
+                        "Source": "/var/lib/docker/volumes/7797a375d588146ede3521394fd206b8fab53b651a1dbceecf4adccc341b94e0/_data",
+                        "Destination": "/container_data1",
+                        "Driver": "local",
+                        "Mode": "",
+                        "RW": true,
+                        "Propagation": ""
+                    },
+                    {
+                        "Type": "volume",
+                        "Name": "c4389f0a30e90fdbd6896b99027f90ab133bc957ede1d0e528e93fd36d907646",
+                        "Source": "/var/lib/docker/volumes/c4389f0a30e90fdbd6896b99027f90ab133bc957ede1d0e528e93fd36d907646/_data",
+                        "Destination": "/container_data2",
+                        "Driver": "local",
+                        "Mode": "",
+                        "RW": true,
+                        "Propagation": ""
+                    }
+                ],
+
+        其中的 source 就是 挂载的东西!
+
+    数据卷 --volumes-from 的使用:
+        docker run -it --name centos0001 yangyang0001/centos
+        docker run -it --name centos0002 --volumes-from centos0001 yangyang0001/centos
+        docker run -it --name centos0003 --volumes-from centos0001 yangyang0001/centos
+
+        TODO 特别注意:
+        --volumes from 特性: 一旦建立 不同容器间的 共享容器卷关系, 这种关系 就是互通的, 直到 最后一个容器死亡!
+
+--------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------- 第6章 DockerFile -------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+DockerFile 是什么?
+    docker file 是 镜像文件的 代码 表示文件! 类比 Hello.java ---> Hello.class 和 image ---> DockerFile 的关系!
+
+    书写 docker file 的参考地址, 以 centos 举例: https://github.com/CentOS
+
+    编写 docker file 的过程: 参考 共享容器卷的 工程, 一共有三步:
+        1、创建一个 dockerfile 文件, 并按照规范书写 docker file!
+        2、docker build -f dockerfile -t 镜像名称:tag .
+        3、docker run ...
+
+DockerFile 构建解析过程
+    1、每条保留字指令必须大写, 且必须跟随 参数
+    2、指令 自顶向下 顺序执行
+    3、# 表示注释符
+    4、每条指令都产生一个新的镜像层, 并对镜像进行提交, 直至指令解析完成形成最终的镜像!
+
+DockerFile 保留字指令
+    FROM: 类似于 依赖哪个基础镜像, 类似于 java 中的 extends
+
+    MAINTAINER: 作者 + 作者的邮箱
+
+    RUN: 容器构建时 需要运行的指令
+
+    EXPOSE: 暴露 容器启动后的 端口号
+
+    WORKDIR: 容器启动后, 一旦进入这个容器, 默认进入的目录; 如果不指定 则默认为 / 根目录
+
+    ENV: 在构建镜像的过程中, 设定的环境变量; 举例: ENV WORK_PATH /tmp
+
+    ADD: 该指令表示 COPY + 解压缩, 比 COPY 指令强大;
+
+    COPY: 将源文件 复制到 目的路径下; 使用格式 COPY srcpath destpath 或者 COPY ["srcpath", "destpath"]
+
+    VOLUME: 共享数据卷
+
+    CMD: 启动容器时, 需要执行的命令, 只执行最后一条 CMD 指令; 会被 docker run 之后的参数代替
+
+    ENTRYPOINT: 启动容器时, 需要执行的命令; 会追加到 docker run 之后的参数
+
+    ONBUILD: 当构建 子镜像 时, 如果父镜像中有 ONBUILD 指令, 则 父镜像中的 ONBUILD 被触发 执行!
+
+DcokerFile案例:
+    自定义镜像 centos
+        GitHub 上的参考地址: https://github.com/docker-library
+
+        0、准备环境
+            mkdir -R /root/mine_dockerfile/centos7/
+            cd /root/mine_dockerfile/centos7/
+
+        1、创建一个 DockerFile 文件
+            vim DockerFile
+
+            # ------------------------------------- Dockerfile 内容 start -----------------------------
+            FROM centos:7
+
+            ENV WORK_PATH /tmp
+            WORKDIR $WORK_PATH
+
+            # 镜像问题连不上外网 下载不了
+            RUN yum -y install vim
+            RUN yum -y install net-tools
+
+            EXPOSE 80
+            CMD ["/usr/sbin/init"]
+            # ------------------------------------- Dockerfile 内容  end  -----------------------------
+
+        2、执行创建指令
+            docker rm -f $(docker ps -qa)
+            docker rmi -f yangyang0001/centos7
+
+            docker build -f Dockerfile -t yangyang0001/centos7:1.0 .
+
+        3、根据自己的镜像 运行 容器
+            docker run --privileged -it yangyang0001/centos7:1.0
+
+        4、查看镜像的 产生历史
+            使用格式: docker history IMAGE_ID
+
+            测试指令:
+            [root@localhost ~]# docker history yangyang0001/centos7:1.0
+            IMAGE          CREATED         CREATED BY                                      SIZE      COMMENT
+            39b04f36e0a8   3 minutes ago   /bin/sh -c #(nop)  CMD ["/usr/sbin/init"]       0B
+            df47541ce9c4   3 minutes ago   /bin/sh -c #(nop)  EXPOSE 80                    0B
+            ca2acfc8f7d1   3 minutes ago   /bin/sh -c yum -y install net-tools             161MB
+            73fe977770b8   3 minutes ago   /bin/sh -c yum -y install vim                   216MB
+            97b47b4b5304   3 minutes ago   /bin/sh -c #(nop) WORKDIR /tmp                  0B
+            980892cca5ec   3 minutes ago   /bin/sh -c #(nop)  ENV WORK_PATH=/tmp           0B
+            eeb6ee3f44bd   5 months ago    /bin/sh -c #(nop)  CMD ["/bin/bash"]            0B
+            <missing>      5 months ago    /bin/sh -c #(nop)  LABEL org.label-schema.sc…   0B
+            <missing>      5 months ago    /bin/sh -c #(nop) ADD file:b3ebbe8bd304723d4…   204MB
 
 
+    CMD 和 ENTRYPOINT 命令案例: 使用 curl -s https://ip.cn; 如果 使用 curl -s -i https://ip.cn
+
+        0、准备环境
+            mkdir -R /root/mine_dockerfile/centos7/
+            cd /root/mine_dockerfile/centos7/
+
+        1、创建一个 DockerFile 文件
+            vim DockerFile2
+            # ------------------------------------- Dockerfile2 内容 start -----------------------------
+            FROM centos:7
+
+            RUN yum -y install curl
+
+            # CMD ["curl", "-s", "https://ip.cn"]
+            ENTRYPOINT ["curl", "-s", "https://ip.cn"]
+            # ------------------------------------- Dockerfile2 内容  end  -----------------------------
+
+        2、执行创建指令
+            docker build -f Dockerfile2 -t yangyang0001/centos7:2.0 .
+
+        3、根据自己的镜像 运行 容器
+            docker run --privileged -it yangyang0001/centos7:2.0            # CMD 报错, 不能加 -i
+            docker run --privileged -it yangyang0001/centos7:2.0 -i         # ENTRYPOINT 没有问题
 
 
+    ONBUILD 命令案例
+        父镜像 parent, 子镜像: child 中 From parent, 如果此时 在父镜像中 有 ONBUILD 指令, 就会在构建 子类镜像的时候 执行 父类的 ONBUILD 指令!
+
+    自定义 tomcat8 案例
+        0、准备环境和文件
+            mkdir /root/mine_dockerfile/tomcat8
+            jdk-8u321-linux-x64.tar.gz
+            apache-tomcat-8.5.9.tar.gz
+
+        1、编写 Dockerfile
+            cd /root/mine_dockerfile/tomcat8
+
+            vim Dockerfile
+
+            # ------------------------------------- Dockerfile 内容  end  -----------------------------
+            FROM centos:7
+
+            RUN yum -y install vim
+
+            # 添加jdk8.tar.gz 并解压, 添加tomcat8.tar.gz 并解压
+            ADD jdk-8u321-linux-x64.tar.gz /usr/local
+            ADD apache-tomcat-8.5.9.tar.gz /usr/local
+
+            ENV mypath /usr/local
+            WORKDIR $mypath
+
+            # 配置环境变量
+            ENV JAVA_HOME /usr/local/jdk1.8.0_321
+            ENV JRE_HOME /usr/local/jdk1.8.0_321/jre
+            ENV CLASSPATH $JRE_HOME/lib/rt.jar:$JRE_HOME/lib/ext
+            ENV TOMCAT_HOME /usr/local/apache-tomcat-8.5.9/
+            ENV CATALINA_BASE /usr/local/apache-tomcat-8.5.9/
+            ENV CATALINA_HOME /usr/local/apache-tomcat-8.5.9/
+            ENV PATH $PATH:$JRE_HOME/bin:$JAVA_HOME/bin:$CATALINA_HOME/lib:$CATALINA_HOME/bin
+
+            EXPOSE 8080
+
+            CMD /usr/local/apache-tomcat-8.5.9/bin/startup.sh && tail -fn 200 /usr/local/apache-tomcat-8.5.9/logs/catalina.out
+            # ------------------------------------- Dockerfile 内容  end  -----------------------------
+
+        2、构建 镜像 文件
+            docker build -f Dockerfile -t yangyang0001/tomcat8:1.0 .
+
+        3、根据 镜像 运行
+            docker run -it -p 8888:8080 yangyang0001/tomcat8:1.0
 
 
+--------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------- 第7章 Docker 常用安装 ----------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+一般过程为:
+    docker search
+    docker pull
+    docker run
+
+安装 Mysql
+    [root@localhost ~]# docker pull mysql:8.0.27
+
+    [root@localhost ~]# docker run -d -p 13306:3306 --name mine_mysql \
+    -e MYSQL_ROOT_PASSWORD=123456 \
+    -v /root/mine_dockerfile/mysql8.0.27/conf:/etc/mysql/conf.d \
+    -v /root/mine_dockerfile/mysql8.0.27/logs:/logs \
+    -v /root/mine_dockerfile/mysql8.0.27/data:/var/lib/mysql \
+    mysql:8.0.27
+
+    -e 表示 ENV 的配置, 必须是 mysql 中有的配置 key; 我们初始化了一下 密码!
+
+    [root@localhost ~]# docker ps
+    CONTAINER ID   IMAGE          COMMAND                  CREATED          STATUS          PORTS                                                    NAMES
+    767ab8e424c2   mysql:8.0.27   "docker-entrypoint.s…"   18 seconds ago   Up 17 seconds   33060/tcp, 0.0.0.0:13306->3306/tcp, :::13306->3306/tcp   mine_mysql
+
+其他的参考 DockerHub 上的镜像, 并参考以下 启动过程! 剩下的就是多书写, 多使用!
 
