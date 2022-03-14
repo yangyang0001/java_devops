@@ -37,6 +37,7 @@ Kubernetes 架构
     参考官网文档地址: https://kubernetes.io/zh/docs/concepts/overview/components/
 
 Kubernetes 安装
+    这里的管理和安装 偏网络运维管理人员, 这块指令也比较复杂以后, 有时间补上这块单位正交基!
 
 
 
