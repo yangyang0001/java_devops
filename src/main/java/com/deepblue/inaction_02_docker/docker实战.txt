@@ -50,8 +50,8 @@ docker 架构:
     [root@localhost ~]# docker --version
     Docker version 20.10.12, build e91ed57
 
-    启动 docker
-    systemctl start docker
+    启动 docker, 并设置开机启动
+    systemctl enable docker && systemctl start docker
 
     通过运行映像来验证 docker 引擎是否已正确安装
     docker run hello-world
