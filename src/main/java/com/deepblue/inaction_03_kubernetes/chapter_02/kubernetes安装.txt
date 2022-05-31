@@ -1,0 +1,726 @@
+---------------------------------------------------------- tar.gz 包安装 ----------------------------------------------------------
+TODO 这种安装方式 虽然启动了集群但是, docker 版本有冲突, 一直没有解决!
+
+环境: 5台 Linux 机器
+
+    etcd 2.2.0
+    kubernetes
+    docker
+
+
+    1台 etcd
+    1台 Kubernetes Master
+    3台 Kubernetes Node
+
+    192.168.188.40 etcd
+    192.168.188.27 kube-master
+    192.168.188.41 kube-node-1
+    192.168.188.42 kube-node-2
+    192.168.188.43 kube-node-3
+
+安装 etcd:
+    下载:
+    curl -L  https://github.com/coreos/etcd/releases/download/v2.2.0/etcd-v2.2.0-linux-amd64.tar.gz -o etcd-v2.2.0-linux-amd64.tar.gz
+
+    解压:
+    tar xzvf etcd-v2.2.0-linux-amd64.tar.gz
+
+    配置:
+    vim /etc/profile
+
+    export ETCD_HOME=/home/etcd-v2.2.0-linux-amd64
+    export PATH=$PATH:$ETCD_HOME
+
+    source /etc/profile
+
+    vim /etc/hosts
+
+    192.168.188.40 etcd
+    192.168.188.27 kube-master
+    192.168.188.41 kube-node-1
+    192.168.188.42 kube-node-2
+    192.168.188.43 kube-node-3
+
+    启动:
+    etcd --name etcd \
+    -data-dir /var/lib/etcd \
+    -listen-client-urls http://etcd:2379,http://etcd:4001 \
+    -advertise-client-urls http://etcd:2379,http://etcd:4001 \
+    >> /var/log/etcd.log 2>&1 &
+
+    验证集群:
+    etcdctl -C http://etcd:4001 cluster-health
+
+安装 kubernetes master:
+
+    下载:
+    cd /home/linux_libs/
+    # wget https://github.com/kubernetes/kubernetes/releases/download/v1.1.1/kubernetes.tar.gz
+    wget https://dl.k8s.io/v1.14.0/kubernetes-server-linux-amd64.tar.gz
+
+    解压:
+    tar -zxvf kubernetes.tar.gz
+    [root@kube-master linux_libs]# cd kubernetes/server/
+    tar -zxvf kubernetes-server-linux-amd64.tar.gz
+
+    移动:
+    [root@kube-master server]# mv kubernetes /home/
+
+
+    运行 master 上的组件:
+        cd /home/kubernetes/server/bin
+
+        1、运行 kubernetes api server
+            ./kube-apiserver \
+            --logtostderr=true --v=0 \
+            --etcd-servers=http://etcd:4001 \
+            --insecure-bind-address=0.0.0.0 --insecure-port=8080 \
+            --service-cluster-ip-range=10.254.0.0/16 \
+            >> /var/log/kube-apiserver.log 2>&1 &
+
+
+        2、运行 kubernetes controller manager
+            ./kube-controller-manager \
+            --logtostderr=true --v=0 \
+            --master=http://kube-master:8080 \
+            >> /var/log/kube-controller-manager.log 2>&1 &
+
+
+        3、运行 kubernetes scheduler
+            ./kube-scheduler \
+            --logtostderr=true --v=0 \
+            --master=http://kube-master:8080 \
+            >> /var/log/kube-scheduler.log 2>&1 &
+
+        4、运行 kubernetes proxy
+            ./kube-proxy \
+            --logtostderr=true --v=0 \
+            --master=http://kube-master:8080 \
+            >> /var/log/kube-proxy.log 2>&1 &
+
+
+        [root@kube-master bin]# ps -ef|grep kube
+        root       1817   1525  0 21:10 pts/0    00:00:07 ./kube-apiserver --logtostderr=true --v=0 --etcd-servers=http://etcd:4001 --insecure-bind-address=0.0.0.0 --insecure-port=8080 --service-cluster-ip-range=192.168.188.0/24
+        root       1858   1525  0 21:20 pts/0    00:00:13 ./kube-controller-manager --logtostderr=true --v=0 --master=http://kube-master:8080
+        root       1884   1525  0 21:24 pts/0    00:00:00 ./kube-scheduler --logtostderr=true --v=0 --master=http://kube-master:8080
+        root       1890   1525  0 21:24 pts/0    00:00:01 ./kube-proxy --logtostderr=true --v=0 --master=http://kube-master:8080
+        root       2649   2397  0 21:54 pts/1    00:00:00 grep --color=auto kube
+
+
+安装 kubernetes node1, kubernetes node2, kubernetes node3
+
+    下载:
+    cd /home/linux_libs/
+    wget https://github.com/kubernetes/kubernetes/releases/download/v1.1.1/kubernetes.tar.gz
+
+    解压:
+    tar -zxvf kubernetes.tar.gz
+    [root@kube-master linux_libs]# cd kubernetes/server/
+    tar -zxvf kubernetes-server-linux-amd64.tar.gz
+
+    移动:
+    [root@kube-master server]# mv kubernetes /home/
+
+    安装 docker: 参考 docker实战.txt 第2章
+
+    运行 kubernetes node 中的组件:
+
+        1、运行 docker, 这里不设置开机启动
+            systemctl start docker
+
+        2、运行 kubelet
+            cd /home/kubernetes/server/bin
+            ./kubelet \
+            --logtostderr=true --v=0 \
+            --config=/etc/kubernetes/manifests \
+            --address=0.0.0.0 \
+            --api-servers=http://kube-master:8080 \
+            >> /var/log/kubelet.log 2>&1 &
+
+        3、运行 kube-proxy
+            cd /home/kubernetes/server/bin
+            ./kube-proxy \
+            --logtostderr=true --v=0 \
+            --master=http://kube-master:8080 \
+            >> /var/log/kube-proxy.log 2>&1 &
+
+
+查看 kubernetes master 节点状态 (master 节点下查询):
+
+    cd /home/kubernetes/server/bin
+    [root@kube-master bin]# ./kubectl -s http://kube-master:8080 get componentstatus
+    NAME                 STATUS    MESSAGE              ERROR
+    controller-manager   Healthy   ok                   nil
+    scheduler            Healthy   ok                   nil
+    etcd-0               Healthy   {"health": "true"}   nil
+
+    [root@kube-master bin]# ./kubectl -s http://kube-master:8080 get nodes
+    NAME          LABELS                               STATUS    AGE
+    kube-node-1   kubernetes.io/hostname=kube-node-1   Ready     56m:
+    kube-node-2   kubernetes.io/hostname=kube-node-2   Ready     7m
+    kube-node-3   kubernetes.io/hostname=kube-node-3   Ready     4m
+
+
+创建 kubernetes 覆盖网络
+    使用 Flannel 实现网络的覆盖功能!
+
+    在所有节点上下载 Flannel
+        cd /home/linux_libs/
+        wget https://github.com/coreos/flannel/releases/download/v0.5.4/flannel-0.5.4-linux-amd64.tar.gz
+
+        tar -zxvf flannel-0.5.4-linux-amd64.tar.gz
+        mv flannel-0.5.4 /home/
+
+    在 etcd 节点上使用:
+        配置环境变量:
+        vim /etc/profile
+        export FLANNEL_HOME=/home/flannel-0.5.4
+        export PATH=$PATH:$FLANNEL_HOME
+        source /etc/profile
+
+        配置网略覆盖指令:
+        etcdctl -C http://etcd:4001 \
+        set /coreos.com/network/config '{"Network" : "10.0.0.0/16"}'
+
+    在 kubernetes 所有节点上(kube-master 和 kube-node-*) 执行:
+         flanneld -etcd-endpoints=http://etcd:4001 \
+         >> /var/log/flanneld.log 2>&1 &
+
+    在 kubernetes 上的 kube-node-* 节点上执行:
+        安装 网桥相关的指令:
+            yum install bridge-utils -y
+
+        Flannel 会重新配置 docker 网桥, 需要先删除 原先创建的 docker 网桥(3条指令):
+            [root@kube-node-* flannel]# iptables -t nat -F
+            [root@kube-node-* flannel]# ifconfig docker0 down
+            [root@kube-node-* flannel]# brctl delbr docker0
+
+        根据 Flannel 启动后生成的 subnet.env 文件 转换成 docker 需要的 网桥文件 subnet.env
+            mk-docker-opts.sh -k DOCKER_NETWORK_OPTIONS -d /run/flannel/subnet.env
+
+        加入环境变量中
+            source /run/flannel/subnet.env
+
+        关闭 docker:
+            systemctl stop docker
+            systemctl stop docker.socket
+
+        编辑 docker 启动文件, 以指定的 subnet.env 文件启动:
+            vim /usr/lib/systemd/system/docker.service
+
+            # ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock
+            EnvironmentFile=/run/flannel/subnet.env
+            ExecStart=/usr/bin/dockerd $DOCKER_NETWORK_OPTIONS
+
+        重启 docker:
+            systemctl daemon-reload
+            systemctl start docker
+
+
+    安装完成之后 Kubernetes Node 的 Docker 网桥规划如下:
+
+        192.168.188.27 kube-master
+        192.168.188.41 kube-node-1
+        192.168.188.42 kube-node-2
+        192.168.188.43 kube-node-3
+
+
+    节点名称                    主机名                 IP              Docker网桥
+    kubernetes node1        kube-node-1         192.168.188.41      10.0.57.1/24
+    kubernetes node2        kube-node-2         192.168.188.42      10.0.61.1/24
+    kubernetes node3        kube-node-3         192.168.188.43      10.0.58.1/24
+
+安装 Cluster DNS 插件 [在 kube-master 节点上安装配置]
+
+    配置环境变量:
+        vim /etc/profile
+
+        export DNS_SERVER_IP="10.254.10.2"
+        export DNS_DOMAIN="cluster.local"
+        export DNS_REPLICAS=1
+
+        source /etc/profile
+        
+        注意点: 设置 Cluster DNS Service 的IP为 10.254.10.2 (不能和已分配的IP重复), Cluster DNS的本地域为 cluster.local
+
+    修改 每台 kube-node-* 的启动参数 [在 kube-node-* 节点上执行]
+        --cluster_dns=10.254.10.2
+        --cluster_domain=cluster.local
+
+        变为:
+        cd /home/kubernetes/server/bin
+        ./kubelet \
+        --logtostderr=true --v=0 \
+        --config=/etc/kubernetes/manifests \
+        --address=0.0.0.0 \
+        --api-servers=http://kube-master:8080 \
+        --cluster_dns=10.254.10.2 \
+        --cluster_domain=cluster.local \
+        >> /var/log/kubelet.log 2>&1 &
+
+    重启 kubelet [在 kube-node-* 节点上执行]
+        cd /home/kubernetes/server/bin
+        ./kubelet \
+        --logtostderr=true --v=0 \
+        --config=/etc/kubernetes/manifests \
+        --address=0.0.0.0 \
+        --api-servers=http://kube-master:8080 \
+        --cluster_dns=10.254.10.2 \
+        --cluster_domain=cluster.local \
+        >> /var/log/kubelet.log 2>&1 &
+
+    生成dns-rc.yaml和dns-svc.yaml [在 kube-master 节点上执行]
+
+        [root@kube-master ~]# cd /home/linux_libs/kubernetes/cluster/addons/dns
+
+        sed -e "s/{{ pillar\['dns_replicas'\] }}/${DNS_REPLICAS}/g;s/{{ pillar\['dns_domain'\] }}/${DNS_DOMAIN}/g" \skydns-rc.yaml.in > skydns-rc.yaml
+        sed -e "s/{{ pillar\['dns_server'\] }}/${DNS_SERVER_IP}/g" \skydns-svc.yaml.in > skydns-svc.yaml
+
+        [注意此处:
+            根据生成的 skydns-rc.yaml 和 skydns-svc.yaml 文件 要在 kube-node-*上 拉下所有的镜像来才可以执行下面创建Pod后的启动!
+            在 kube-node-* 上执行:
+
+            拉取镜像:
+            docker pull ralphjin/etcd209
+            docker pull yecc/gcr.io-google_containers-kube2sky
+            docker pull yecc/gcr.io-google_containers-skydns
+            docker pull yecc/gcr.io-google_containers-exechealthz
+            docker pull yecc/gcr.io-google_containers-pause:0.8.0
+
+            查看镜像:
+            [root@kube-node-* bin]# docker images
+            REPOSITORY                                  TAG       IMAGE ID       CREATED        SIZE
+            ralphjin/etcd209                            latest    3fae67f7fcb5   4 years ago    12.8MB
+            yecc/gcr.io-google_containers-exechealthz   latest    82a141f5d06d   6 years ago    7.12MB
+            yecc/gcr.io-google_containers-skydns        latest    718809956625   6 years ago    40.6MB
+            yecc/gcr.io-google_containers-kube2sky      latest    2c2534f5ba34   6 years ago    19.2MB
+            yecc/gcr.io-google_containers-pause         0.8.0     bf595365a558   7 years ago    242kB
+
+            修改镜像为我们想要的tag:
+            docker tag ralphjin/etcd209:latest gcr.io/google_containers/etcd:2.0.9
+            docker tag yecc/gcr.io-google_containers-kube2sky:latest gcr.io/google_containers/kube2sky:1.11
+            docker tag yecc/gcr.io-google_containers-skydns:latest gcr.io/google_containers/skydns:2015-10-13-8c72f8c
+            docker tag yecc/gcr.io-google_containers-exechealthz:latest gcr.io/google_containers/exechealthz:1.0
+            docker tag yecc/gcr.io-google_containers-pause:0.8.0 gcr.io/google_containers/pause:0.8.0
+
+            删除掉不需要的 image:
+            docker rmi ralphjin/etcd209
+            docker rmi yecc/gcr.io-google_containers-exechealthz
+            docker rmi yecc/gcr.io-google_containers-skydns
+            docker rmi yecc/gcr.io-google_containers-kube2sky
+            docker rmi yecc/gcr.io-google_containers-pause:0.8.0
+
+            查看镜像:
+            [root@kube-node-1 bin]# docker images
+            REPOSITORY                             TAG                  IMAGE ID       CREATED        SIZE
+            gcr.io/google_containers/etcd          2.0.9                3fae67f7fcb5   4 years ago    12.8MB
+            gcr.io/google_containers/exechealthz   1.0                  82a141f5d06d   6 years ago    7.12MB
+            gcr.io/google_containers/skydns        2015-10-13-8c72f8c   718809956625   6 years ago    40.6MB
+            gcr.io/google_containers/kube2sky      1.11                 2c2534f5ba34   6 years ago    19.2MB
+            gcr.io/google_containers/pause         0.8.0                bf595365a558   7 years ago    242kB
+
+        ]
+
+
+        需要注意 kube2sky 需要 ServiceAccount 来调用 Kubernetes API, 如果没有开启 ServiceAccount 可以显示指定 KubernetesAPI 的 URL,
+        在 skydns-rc.yaml 设置 kube2sky 参数
+        vim skydns-rc.yaml
+
+        args:
+        # command = "/kube2sky"
+        - --domain=cluster.local
+        # 添加 kube_master_url
+        - --kube_master_url=http://kube-master:8080
+
+
+
+    通过 skydns-rc.yaml 文件 创建 Cluster DNS Replication Controller [在 kube-master 节点上执行]
+        cd /home/kubernetes/server/bin/
+        ./kubectl create -f /home/linux_libs/kubernetes/cluster/addons/dns/skydns-rc.yaml
+        ./kubectl delete -f /home/linux_libs/kubernetes/cluster/addons/dns/skydns-rc.yaml
+
+    Cluster DNS Replication Controller  查询 Cluster DNS Pod: [在 kube-master 节点上执行]
+        cd /home/kubernetes/server/bin/
+        ./kubectl get pod --selector k8s-app=kube-dns --namespace=kube-system --output json
+
+
+
+    上面 创建启动 Cluster DNS Pod 遇到的问题:
+    E0527 12:42:29.512956   20747 file.go:53] Unable to read config path "/etc/kubernetes/manifests": path does not exist, ignoring
+
+    W0527 12:44:10.312962   20747 container_manager_linux.go:278] [ContainerManager] Failed to ensure state of "/docker-daemon": failed to find pid of Docker container: exit status 1
+
+
+
+
+    通过 skydns-svc.yaml 文件 创建 Cluster DNS Service [在 kube-master 节点上执行]
+        cd /home/kubernetes/server/bin/
+        ./kubectl create -f /home/linux_libs/kubernetes/cluster/addons/dns/skydns-svc.yaml
+        ./kubectl delete -f /home/linux_libs/kubernetes/cluster/addons/dns/skydns-svc.yaml
+
+    查询 Cluster DNS Service [在 kube-master 节点上执行]
+        cd /home/kubernetes/server/bin/
+        ./kubectl get service -l k8s-app=kube-dns --namespace=kube-system --output json
+
+
+
+    Cluster DNS 部署完成之后, 可以创建 Pod 进行验证 [在 kube-master 节点上执行] 此处等有 docker 容器运行时查询
+        cd /home/kubernetes/server/bin/
+        ./kubectl exec my-pod -- nslookup kubernetes.default.cluster.local
+
+
+---------------------------------------------------------- kubeadm 方式安装 ----------------------------------------------------------
+参考教程: https://kubernetes.io/zh/docs/setup/production-environment/tools/kubeadm/install-kubeadm/
+
+环境准备
+
+    两台机器:
+    192.168.188.44 k8s-master
+    192.168.188.46 k8s-node-1
+    192.168.188.47 k8s-node-2
+    192.168.188.48 k8s-node-3
+
+    1、关闭防火墙
+        # 停止firewall
+        systemctl stop firewalld.service
+
+        # 禁止firewall开机启动
+        systemctl disable firewalld.service
+
+    2、禁用 SELinux 使容器能够读取主机文件
+        vim /etc/sysconfig/selinux
+
+        # 禁用 SELINUX
+        # SELINUX=enforcing
+        SELINUX=disabled
+
+
+    3、设置 hostname
+        192.168.188.44 k8s-master
+        192.168.188.46 k8s-node-1
+        192.168.188.47 k8s-node-2
+        192.168.188.48 k8s-node-3
+
+    4、关闭交换分区
+        vim /etc/fstab
+
+        # k8s禁用掉交换分区
+        # /dev/mapper/centos-swap swap                    swap    defaults        0 0
+
+    5、重启机器!
+
+
+[master 节点] 安装 kubeadm 和相关工具 :
+    1、配置 yum 源
+        vim /etc/yum.repos.d/kubernetes.repo
+
+        [kubernetes]
+        name=Kubernetes Repository
+        baseurl=http://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64/
+        enabled=1
+        gpgcheck=0
+
+    2、安装 docker 参考 docker实战.txt 第二章, 重置以下镜像源
+
+    3、安装 kubeadm 和 相关工具
+        # 卸载之前安装的
+        yum remove kubelet kubeadm kubectl -y
+
+        # 查看对应的版本, 通过version指定版本进行相应的安装 version=1.14.0-0
+        yum list kubelet --showduplicates |sort -r
+
+        yum install -y kubelet-${version} kubeadm-${version} kubectl-${version} --disableexcludes=kubernetes
+        变为:
+        yum install -y kubelet-1.14.0-0 kubeadm-1.14.0-0 kubectl-1.14.0-0 --disableexcludes=kubernetes
+
+        问题:
+            Error: Package: kubelet-1.14.0-0.x86_64 (kubernetes)
+                       Requires: kubernetes-cni = 0.7.5
+                       Available: kubernetes-cni-0.3.0.1-0.07a8a2.x86_64 (kubernetes)
+                           kubernetes-cni = 0.3.0.1-0.07a8a2
+                       Available: kubernetes-cni-0.5.1-0.x86_64 (kubernetes)
+                           kubernetes-cni = 0.5.1-0
+                       Available: kubernetes-cni-0.5.1-1.x86_64 (kubernetes)
+                           kubernetes-cni = 0.5.1-1
+                       Available: kubernetes-cni-0.6.0-0.x86_64 (kubernetes)
+                           kubernetes-cni = 0.6.0-0
+                       Available: kubernetes-cni-0.7.5-0.x86_64 (kubernetes)
+                           kubernetes-cni = 0.7.5-0
+                       Available: kubernetes-cni-0.8.6-0.x86_64 (kubernetes)
+                           kubernetes-cni = 0.8.6-0
+                       Installing: kubernetes-cni-0.8.7-0.x86_64 (kubernetes)
+                           kubernetes-cni = 0.8.7-0
+            You could try using --skip-broken to work around the problem
+            You could try running: rpm -Va --nofiles --nodigest
+
+        解决方式:
+            单独安装 kubelet
+            yum -y install kubelet-1.14.0
+
+        systemctl enable docker && systemctl start docker
+        systemctl enable kubelet && systemctl start kubelet
+
+[master 节点] 初始化 kubeadm config
+    kubeadm config print init-defaults > init.default.yaml
+
+    vim init-config.yaml
+    写入如下内容:
+    apiVersion: kubeadm.k8s.io/v1beta1
+    kind: ClusterConfiguration
+    imageRepository: docker.io/dustise
+    kubernetesVersion: v1.14.0
+    networking:
+        podSubnet: "192.168.0.0/16"
+
+[master 节点] 下载 Kubernetes 的相关镜像
+    kubeadm config images pull --config=init-config.yaml
+
+    [config/images] Pulled docker.io/dustise/kube-apiserver:v1.14.0
+    [config/images] Pulled docker.io/dustise/kube-controller-manager:v1.14.0
+    [config/images] Pulled docker.io/dustise/kube-scheduler:v1.14.0
+    [config/images] Pulled docker.io/dustise/kube-proxy:v1.14.0
+    [config/images] Pulled docker.io/dustise/pause:3.1
+    [config/images] Pulled docker.io/dustise/etcd:3.3.10
+    [config/images] Pulled docker.io/dustise/coredns:1.3.1
+
+[master 节点] 运行 kubeadm init 命令初始化
+    kubeadm init --config=init-config.yaml
+
+    错误:
+    [ERROR FileContent--proc-sys-net-bridge-bridge-nf-call-iptables]: /proc/sys/net/bridge/bridge-nf-call-iptables contents are not set to 1
+
+    解决方案:
+    echo "1" >/proc/sys/net/bridge/bridge-nf-call-iptables
+
+    执行 kubeadm init --config=init-config.yaml
+    [root@k8s-master ~]# kubeadm init --config=init-config.yaml
+    [init] Using Kubernetes version: v1.14.0
+    [preflight] Running pre-flight checks
+            [WARNING IsDockerSystemdCheck]: detected "cgroupfs" as the Docker cgroup driver. The recommended driver is "systemd". Please follow the guide at https://kubernetes.io/docs/setup/cri/
+            [WARNING SystemVerification]: this Docker version is not on the list of validated versions: 20.10.16. Latest validated version: 18.09
+    [preflight] Pulling images required for setting up a Kubernetes cluster
+    [preflight] This might take a minute or two, depending on the speed of your internet connection
+    [preflight] You can also perform this action in beforehand using 'kubeadm config images pull'
+    [kubelet-start] Writing kubelet environment file with flags to file "/var/lib/kubelet/kubeadm-flags.env"
+    [kubelet-start] Writing kubelet configuration to file "/var/lib/kubelet/config.yaml"
+    [kubelet-start] Activating the kubelet service
+    [certs] Using certificateDir folder "/etc/kubernetes/pki"
+    [certs] Generating "ca" certificate and key
+    [certs] Generating "apiserver" certificate and key
+    [certs] apiserver serving cert is signed for DNS names [k8s-master kubernetes kubernetes.default kubernetes.default.svc kubernetes.default.svc.cluster.local] and IPs [10.96.0.1 192.168.188.44]
+    [certs] Generating "apiserver-kubelet-client" certificate and key
+    [certs] Generating "etcd/ca" certificate and key
+    [certs] Generating "etcd/peer" certificate and key
+    [certs] etcd/peer serving cert is signed for DNS names [k8s-master localhost] and IPs [192.168.188.44 127.0.0.1 ::1]
+    [certs] Generating "etcd/healthcheck-client" certificate and key
+    [certs] Generating "apiserver-etcd-client" certificate and key
+    [certs] Generating "etcd/server" certificate and key
+    [certs] etcd/server serving cert is signed for DNS names [k8s-master localhost] and IPs [192.168.188.44 127.0.0.1 ::1]
+    [certs] Generating "front-proxy-ca" certificate and key
+    [certs] Generating "front-proxy-client" certificate and key
+    [certs] Generating "sa" key and public key
+    [kubeconfig] Using kubeconfig folder "/etc/kubernetes"
+    [kubeconfig] Writing "admin.conf" kubeconfig file
+    [kubeconfig] Writing "kubelet.conf" kubeconfig file
+    [kubeconfig] Writing "controller-manager.conf" kubeconfig file
+    [kubeconfig] Writing "scheduler.conf" kubeconfig file
+    [control-plane] Using manifest folder "/etc/kubernetes/manifests"
+    [control-plane] Creating static Pod manifest for "kube-apiserver"
+    [control-plane] Creating static Pod manifest for "kube-controller-manager"
+    [control-plane] Creating static Pod manifest for "kube-scheduler"
+    [etcd] Creating static Pod manifest for local etcd in "/etc/kubernetes/manifests"
+    [wait-control-plane] Waiting for the kubelet to boot up the control plane as static Pods from directory "/etc/kubernetes/manifests". This can take up to 4m0s
+    [apiclient] All control plane components are healthy after 16.005051 seconds
+    [upload-config] storing the configuration used in ConfigMap "kubeadm-config" in the "kube-system" Namespace
+    [kubelet] Creating a ConfigMap "kubelet-config-1.14" in namespace kube-system with the configuration for the kubelets in the cluster
+    [upload-certs] Skipping phase. Please see --experimental-upload-certs
+    [mark-control-plane] Marking the node k8s-master as control-plane by adding the label "node-role.kubernetes.io/master=''"
+    [mark-control-plane] Marking the node k8s-master as control-plane by adding the taints [node-role.kubernetes.io/master:NoSchedule]
+    [bootstrap-token] Using token: ta4ecg.wtvrjyh1fzx5ehl7
+    [bootstrap-token] Configuring bootstrap tokens, cluster-info ConfigMap, RBAC Roles
+    [bootstrap-token] configured RBAC rules to allow Node Bootstrap tokens to post CSRs in order for nodes to get long term certificate credentials
+    [bootstrap-token] configured RBAC rules to allow the csrapprover controller automatically approve CSRs from a Node Bootstrap Token
+    [bootstrap-token] configured RBAC rules to allow certificate rotation for all node client certificates in the cluster
+    [bootstrap-token] creating the "cluster-info" ConfigMap in the "kube-public" namespace
+    [addons] Applied essential addon: CoreDNS
+    [addons] Applied essential addon: kube-proxy
+
+    Your Kubernetes control-plane has initialized successfully!
+
+    To start using your cluster, you need to run the following as a regular user:   // 提示指令是下面三条
+
+      mkdir -p $HOME/.kube
+      sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+      sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+    You should now deploy a pod network to the cluster.
+    Run "kubectl apply -f [podnetwork].yaml" with one of the options listed at:
+      https://kubernetes.io/docs/concepts/cluster-administration/addons/
+
+    Then you can join any number of worker nodes by running the following on each as root:  // 可以加入集群需要执行的指令
+
+    kubeadm join 192.168.188.44:6443 --token ta4ecg.wtvrjyh1fzx5ehl7 \
+        --discovery-token-ca-cert-hash sha256:d7ff522a8a6e8c32c6151bd87a9ae44457c54cca85429848b50c72a546bc7591
+
+
+    执行提示指令:
+    mkdir -p $HOME/.kube
+    sudo cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    sudo chown $(id -u):$(id -g) $HOME/.kube/config
+
+    验证 kubernetes 在 master 节点的安装是否成功:
+    [root@k8s-master ~]# kubectl get -n kube-system configmap
+    NAME                                 DATA   AGE
+    coredns                              1      5m48s
+    extension-apiserver-authentication   6      5m52s
+    kube-proxy                           2      5m48s
+    kubeadm-config                       2      5m49s
+    kubelet-config-1.14                  1      5m49s
+
+
+[node 节点] 安装 Node节点, 并加入集群
+
+    1、安装 docker 参考 docker实战.txt 第二章, 重置下镜像源
+
+    2、安装 kubeadm  和 相关工具
+
+        # 配置 yum 源
+        vim /etc/yum.repos.d/kubernetes.repo
+
+        [kubernetes]
+        name=Kubernetes Repository
+        baseurl=http://mirrors.aliyun.com/kubernetes/yum/repos/kubernetes-el7-x86_64/
+        enabled=1
+        gpgcheck=0
+
+        # 卸载之前安装的
+        yum remove kubelet kubeadm kubectl -y
+
+        # 查看对应的版本, 通过version指定版本进行相应的安装 version=1.14.0-0
+        yum list kubelet --showduplicates |sort -r
+
+        yum install -y kubelet-${version} kubeadm-${version} kubectl-${version} --disableexcludes=kubernetes
+        变为:
+        yum install -y kubelet-1.14.0-0 kubeadm-1.14.0-0 kubectl-1.14.0-0 --disableexcludes=kubernetes
+
+        错误:
+        Error: Package: kubelet-1.14.0-0.x86_64 (kubernetes)
+                Requires: kubernetes-cni = 0.7.5
+                Available: kubernetes-cni-0.3.0.1-0.07a8a2.x86_64 (kubernetes)
+                   kubernetes-cni = 0.3.0.1-0.07a8a2
+                Available: kubernetes-cni-0.5.1-0.x86_64 (kubernetes)
+                   kubernetes-cni = 0.5.1-0
+                Available: kubernetes-cni-0.5.1-1.x86_64 (kubernetes)
+                   kubernetes-cni = 0.5.1-1
+                Available: kubernetes-cni-0.6.0-0.x86_64 (kubernetes)
+                   kubernetes-cni = 0.6.0-0
+                Available: kubernetes-cni-0.7.5-0.x86_64 (kubernetes)
+                   kubernetes-cni = 0.7.5-0
+                Available: kubernetes-cni-0.8.6-0.x86_64 (kubernetes)
+                   kubernetes-cni = 0.8.6-0
+                Installing: kubernetes-cni-0.8.7-0.x86_64 (kubernetes)
+                   kubernetes-cni = 0.8.7-0
+        You could try using --skip-broken to work around the problem
+        You could try running: rpm -Va --nofiles --nodigest
+
+        解决方式:
+            单独安装 kubelet
+            yum -y install kubelet-1.14.0
+
+        systemctl enable docker && systemctl start docker
+        systemctl enable kubelet && systemctl start kubelet
+
+
+    3、为 kubeadm 命令生成配置文件 创建文件 join-config.yaml, 内容如下:
+        vim join-config.yaml
+
+        apiVersion: kubeadm.k8s.io/v1beta1
+        kind: JoinConfiguration
+        discovery:
+          bootstrapToken:
+            apiServerEndpoint: 192.168.188.44:6443          # 来自于 可以加入集群需要执行的指令
+            token: ta4ecg.wtvrjyh1fzx5ehl7                  # 来自于 可以加入集群需要执行的指令
+            unsafeSkipCAVerification: true
+          tlsBootstrapToken: ta4ecg.wtvrjyh1fzx5ehl7        # 来自于 可以加入集群需要执行的指令
+
+
+    4、执行 kubeadm join 命令, 将本 Node 加入到集群中:
+        kubeadm join --config=join-config.yaml
+
+
+[master 节点] 安装网络插件
+    在 master 节点上使用 节点信息 STATUS=NotReady
+    [root@k8s-master ~]# kubectl get nodes
+    NAME         STATUS     ROLES    AGE    VERSION
+    k8s-master   NotReady   master   102m   v1.14.0
+    k8s-node     NotReady   <none>   61s    v1.14.0
+
+
+    使用 weave 插件
+    kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$(kubectl version | base64 | tr -d '\n')"
+    kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=v1.14.0"
+
+    [root@k8s-master ~]# kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=v1.14.0"
+    serviceaccount/weave-net created
+    clusterrole.rbac.authorization.k8s.io/weave-net created
+    clusterrolebinding.rbac.authorization.k8s.io/weave-net created
+    role.rbac.authorization.k8s.io/weave-net created
+    rolebinding.rbac.authorization.k8s.io/weave-net created
+    daemonset.apps/weave-net created
+
+[master 节点] 验证 kubernetes 集群是否安装成功:
+
+    [root@k8s-master ~]# kubectl cluster-info
+    Kubernetes master is running at https://192.168.188.44:6443
+    KubeDNS is running at https://192.168.188.44:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+    [root@k8s-master ~]# kubectl get nodes
+    NAME         STATUS   ROLES    AGE    VERSION
+    k8s-master   Ready    master   122m   v1.14.0
+    k8s-node     Ready    <none>   20m    v1.14.0
+
+    [root@k8s-master ~]# kubectl get pod -A
+    NAMESPACE     NAME                                 READY   STATUS    RESTARTS   AGE
+    kube-system   coredns-6897bd7b5-dbxkk              1/1     Running   0          123m
+    kube-system   coredns-6897bd7b5-nmsgn              1/1     Running   0          123m
+    kube-system   etcd-k8s-master                      1/1     Running   0          122m
+    kube-system   kube-apiserver-k8s-master            1/1     Running   0          122m
+    kube-system   kube-controller-manager-k8s-master   1/1     Running   0          122m
+    kube-system   kube-proxy-hkkgp                     1/1     Running   0          21m
+    kube-system   kube-proxy-trjm8                     1/1     Running   0          123m
+    kube-system   kube-scheduler-k8s-master            1/1     Running   0          122m
+    kube-system   weave-net-4sh2l                      2/2     Running   1          8m41s
+    kube-system   weave-net-6z6tv                      2/2     Running   1          8m41s
+
+
+清理 replicationcontroller 和 service
+
+    [root@k8s-master ~]# kubectl get pods
+    NAME                 READY   STATUS    RESTARTS   AGE
+    frontend-fwg4p       1/1     Running   0          58m
+    frontend-mqrlg       1/1     Running   0          58m
+    frontend-tgdst       1/1     Running   0          58m
+    redis-master-fhhfp   1/1     Running   0          60m
+    redis-slave-qpd65    1/1     Running   0          59m
+    redis-slave-ssg4l    1/1     Running   0          59m
+
+
+    [root@k8s-master ~]# kubectl get service
+    NAME           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+    frontend       NodePort    10.98.33.24     <none>        80:31505/TCP   35m
+    kubernetes     ClusterIP   10.96.0.1       <none>        443/TCP        24h
+    redis-master   ClusterIP   10.102.167.37   <none>        6379/TCP       59m
+    redis-slave    ClusterIP   10.96.72.37     <none>        6379/TCP       59m
+
+    清除 replicationcontroller
+    kubectl delete replicationcontroller redis-master redis-slave frontend
+
+    清除 service
+    kubectl delete service redis-master redis-slave frontend
+
+
+
+
+
+
+

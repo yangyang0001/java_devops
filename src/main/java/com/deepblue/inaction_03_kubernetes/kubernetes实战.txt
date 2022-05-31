@@ -32,39 +32,443 @@ Kubernetes 的核心概念:
 --------------------------------------------------------------------------------------------------------------------------------------
 Kubernetes 集群是采用 主从模式进行架构的! 分为 Master 节点 和 Node 节点, 使用 Etcd 作为 配置存储中心!
 
-Kubernetes 架构
-
-    参考官网文档地址: https://kubernetes.io/zh/docs/concepts/overview/components/
-
-Kubernetes 安装
-    这里的管理和安装 偏网络运维管理人员, 这块指令也比较复杂以后, 有时间补上这块单位正交基!
+安装过程参考: kubernetes安装.txt
 
 
+--------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------- 第3章 Kubernetes 快速入门 ---------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+使用  k8s-master 和 k8s-node-* 节点测试:
+
+    kubernetes 使用环境:
+    [root@k8s-master ~]# kubectl cluster-info
+    Kubernetes master is running at https://192.168.188.44:6443
+    KubeDNS is running at https://192.168.188.44:6443/api/v1/namespaces/kube-system/services/kube-dns:dns/proxy
+
+    [root@k8s-master ~]# kubectl get componentstatus
+    NAME                 STATUS    MESSAGE             ERROR
+    scheduler            Healthy   ok
+    controller-manager   Healthy   ok
+    etcd-0               Healthy   {"health":"true"}
+
+    [root@k8s-master ~]# kubectl get nodes
+    NAME         STATUS   ROLES    AGE     VERSION
+    k8s-master   Ready    master   20h     v1.14.0
+    k8s-node-1   Ready    <none>   3h41m   v1.14.0
+    k8s-node-2   Ready    <none>   3h24m   v1.14.0
+    k8s-node-3   Ready    <none>   3h24m   v1.14.0
+
+运行 redis
+
+    创建 Redis Master Pod
+        1、创建文件 redis-master-controller.yaml
+
+        2、通过定义文件 创建 Redis Master Replication Controller
+            kubectl create -f /home/chapter_03/redis-master-controller.yaml
+            kubectl delete -f /home/chapter_03/redis-master-controller.yaml
+
+        3、创建成功后可查询 Redis Master Replication Controller
+            [root@k8s-master ~]# kubectl get replicationcontroller redis-master
+            NAME           DESIRED   CURRENT   READY   AGE
+            redis-master   1         1         1       2m36s
+
+        4、Redis Master Replication Controller 将会创建1个 Redis Master Pod, 创建出来的 Pod 就会 带上Label name=redis-master
+            [root@k8s-master ~]# kubectl get pod --selector name=redis-master
+            NAME                 READY   STATUS    RESTARTS   AGE
+            redis-master-ntksz   1/1     Running   0          3m7s
+
+    创建 Redis Master Service 代理 Redis Master Pod
+        1、创建文件 redis-master-service.yaml
+
+        2、通过 定义文件 创建 Redis Master Service
+            kubectl create -f /home/chapter_03/redis-master-service.yaml
+            kubectl delete -f /home/chapter_03/redis-master-service.yaml
+
+        3、创建成功后可查询 Redis Master Service
+            kubectl get service redis-master
+
+    创建 Redis Slave Pod
+        1、创建文件 redis-slave-controller.yaml
+
+        2、通过定义文件 创建 Redis Slave Replication Controller
+            kubectl create -f /home/chapter_03/redis-slave-controller.yaml
+            kubectl delete -f /home/chapter_03/redis-slave-controller.yaml
+
+        3、创建成功后可查询 Redis Slave Replication Controller
+            [root@k8s-master ~]# kubectl get replicationcontroller redis-slave
+            NAME          DESIRED   CURRENT   READY   AGE
+            redis-slave   2         2         2       99s
+
+        4、Redis Slave Replication Controller 将会创建1个 Redis Master Pod, 创建出来的 Pod 就会 带上Label name=redis-master
+            [root@k8s-master ~]# kubectl get pod --selector name=redis-slave
+            NAME                READY   STATUS    RESTARTS   AGE
+            redis-slave-cwd9x   1/1     Running   0          119s
+            redis-slave-r7n4p   1/1     Running   0          119s
+
+    创建 Redis Slave Service
+        1、创建文件 redis-slave-service.yaml
+
+        2、通过 定义文件 创建 Redis Slave Service
+            kubectl create -f /home/chapter_03/redis-slave-service.yaml
+            kubectl delete -f /home/chapter_03/redis-slave-service.yaml
+
+        3、创建成功后可查询 Redis Slave Service
+            kubectl get service redis-slave
+
+运行 Frontend
+
+    创建 Frontend Pod
+        1、创建文件 frontend-controller.yaml
+
+        2、通过定义文件 创建 Frontend Replication Controller
+            kubectl create -f /home/chapter_03/frontend-controller.yaml
+            kubectl delete -f /home/chapter_03/frontend-controller.yaml
+
+        3、创建成功后可查询 Frontend Replication Controller
+            [root@k8s-master ~]# kubectl get replicationcontroller frontend
+            NAME       DESIRED   CURRENT   READY   AGE
+            frontend   3         3         3       3m27s
+
+        4、Frontend Replication Controller 将会创建1个 Frontend Pod, 创建出来的 Pod 就会 带上Label name=frontend
+            [root@k8s-master ~]# kubectl get pod --selector name=frontend
+            NAME             READY   STATUS    RESTARTS   AGE
+            frontend-fwg4p   1/1     Running   0          3m41s
+            frontend-mqrlg   1/1     Running   0          3m41s
+            frontend-tgdst   1/1     Running   0          3m41s
+
+    创建 Frontend Service
+        1、创建文件 frontend-service.yaml
+
+        2、通过 定义文件 创建 Frontend Service
+            kubectl create -f /home/chapter_03/frontend-service.yaml
+            kubectl delete -f /home/chapter_03/frontend-service.yaml
+
+        3、创建成功后可查询 Frontend Service
+            [root@k8s-master ~]# kubectl get service frontend
+            NAME       TYPE        CLUSTER-IP     EXTERNAL-IP   PORT(S)   AGE
+            frontend   ClusterIP   10.110.82.88   <none>        80/TCP    2m18s
+
+设置 Guestbook 外网访问
+    修改 frontend-service.yaml 添加
+    spec:
+      type: NodePort # 添加本行类型
+
+    kubectl replace -f /home/chapter_03/frontend-service.yaml --force
+
+    http://192.168.188.44:31505
+    http://192.168.188.46:31505
+    http://192.168.188.47:31505
+    http://192.168.188.48:31505
+
+    kubectl logs frontend-qkmhm
 
 
+清理 replicationcontroller 和 service
+
+    [root@k8s-master ~]# kubectl get pods
+    NAME                 READY   STATUS    RESTARTS   AGE
+    frontend-fwg4p       1/1     Running   0          58m
+    frontend-mqrlg       1/1     Running   0          58m
+    frontend-tgdst       1/1     Running   0          58m
+    redis-master-fhhfp   1/1     Running   0          60m
+    redis-slave-qpd65    1/1     Running   0          59m
+    redis-slave-ssg4l    1/1     Running   0          59m
 
 
+    [root@k8s-master ~]# kubectl get service
+    NAME           TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE
+    frontend       NodePort    10.98.33.24     <none>        80:31505/TCP   35m
+    kubernetes     ClusterIP   10.96.0.1       <none>        443/TCP        24h
+    redis-master   ClusterIP   10.102.167.37   <none>        6379/TCP       59m
+    redis-slave    ClusterIP   10.96.72.37     <none>        6379/TCP       59m
+
+    清除 replicationcontroller
+    kubectl delete replicationcontroller redis-master redis-slave frontend
+
+    清除 service
+    kubectl delete service redis-master redis-slave frontend
 
 
+--------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------ 第4章 Pod ---------------------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+Hello World Pod 案例:
+    1、创建文件 hello-world-pod.yaml
+
+    2、通过定义文件 创建 Pod
+      kubectl create -f /home/chapter_04/hello-world-pod.yaml
+      kubectl delete -f /home/chapter_04/hello-world-pod.yaml
+
+    3、查询 Pod
+      [root@k8s-master ~]# kubectl get pod hello-world
+
+    4、查询 Pod 输出的日志
+      [root@k8s-master ~]# kubectl logs hello-world
+      Hello World
+
+    5、删除 Pod
+      [root@k8s-master ~]# kubectl delete pod hello-world
+      pod "hello-world" deleted
+
+    核心: 就是搞了一个  centos:7 的 docker 镜像, 然后启动一个 基于此镜像的容器!
+
+Pod 的基本操作:
+
+    创建 Pod:
+
+        使用命令: kubectl create -f *.yaml 文件创建
+
+        使用错误案例: 使用 error-pod.yaml 创建!
+
+        1、创建文件 error-pod.yaml
+
+        2、通过定义文件 创建 Pod
+          kubectl create -f /home/chapter_04/error-pod.yaml
+
+        错误提示:
+        [root@k8s-master ~]# kubectl create -f /home/chapter_04/error-pod.yaml
+        The Pod "" is invalid:
+        * metadata.name: Required value: name or generateName is required
+        * spec.restartPolicy: Unsupported value: "Maybe": supported values: "Always", "OnFailure", "Never"
+
+        这里提示 重启策略 只能 有3种策略值: Always, OnFailure, Never
+
+    查询 Pod:
+
+        查询指定 Pod:
+        kubectl get pod hello-world
+        kubectl get pod hello-world -o wide
+
+        查询 Pod 的详细信息:
+        kubectl get pod hello-world --output json    # 用 json 格式显示 Pod 的完整信息
+        kubectl get pod hello-world --output yaml    # 用 yaml 格式显示 Pod 的完整信息
+
+        查询 Pod 的状态 和 生命周期事件:
+        [root@k8s-master ~]# kubectl describe pod hello-world
+        Name:               hello-world
+        Namespace:          default
+        Priority:           0
+        PriorityClassName:  <none>
+        Node:               k8s-node-1/192.168.188.46
+        Start Time:         Mon, 30 May 2022 15:51:01 +0800
+        Labels:             <none>
+        Annotations:        <none>
+        Status:             Succeeded
+        IP:                 10.32.0.4
+        Containers:
+          hello-world:
+            Container ID:  docker://ed81005cab259505a8e54733ac2af9bce36fa80cc9ef53001e6b85bf3d6bb09b
+            Image:         centos:7
+            Image ID:      docker-pullable://centos@sha256:9d4bcbbb213dfd745b58be38b13b996ebb5ac315fe75711bd618426a630e0987
+            Port:          <none>
+            Host Port:     <none>
+            Command:
+              /bin/echo
+              Hello
+              World
+            State:          Terminated
+              Reason:       Completed
+              Exit Code:    0
+              Started:      Mon, 30 May 2022 15:51:28 +0800
+              Finished:     Mon, 30 May 2022 15:51:28 +0800
+            Ready:          False
+            Restart Count:  0
+            Environment:    <none>
+            Mounts:
+              /var/run/secrets/kubernetes.io/serviceaccount from default-token-v5l7t (ro)
+        Conditions:
+          Type              Status
+          Initialized       True
+          Ready             False
+          ContainersReady   False
+          PodScheduled      True
+        Volumes:
+          default-token-v5l7t:
+            Type:        Secret (a volume populated by a Secret)
+            SecretName:  default-token-v5l7t
+            Optional:    false
+        QoS Class:       BestEffort
+        Node-Selectors:  <none>
+        Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                         node.kubernetes.io/unreachable:NoExecute for 300s
+        Events:
+          Type    Reason          Age    From                 Message
+          ----    ------          ----   ----                 -------
+          Normal  Scheduled       3m13s  default-scheduler    Successfully assigned default/hello-world to k8s-node-1
+          Normal  Pulling         3m12s  kubelet, k8s-node-1  Pulling image "centos:7"
+          Normal  Pulled          2m46s  kubelet, k8s-node-1  Successfully pulled image "centos:7"
+          Normal  Created         2m46s  kubelet, k8s-node-1  Created container hello-world
+          Normal  Started         2m45s  kubelet, k8s-node-1  Started container hello-world
+          Normal  SandboxChanged  2m44s  kubelet, k8s-node-1  Pod sandbox changed, it will be killed and re-created.
+
+    删除 Pod:
+
+        删除指令的 Pod:
+        kubectl delete pod pod名称
+
+        删除所有的 Pod:
+        kubectl delete pod --all
+
+    更新 Pod:
+        使用格式: kubectl replace -f *.yaml
 
 
+Pod 与 容器
+
+    Linux 提供了 6 种 Namespace 隔离的系统调用, 参考 01_linux_namesapce隔离类型
+
+    kubernetes 中 容器卷的共享 是基于 Pod 的, 而不是基于容器的!
+
+    Pod 可以设置环境变量:
+        格式:
+        env:
+        - name: PARAM_1
+          value: VALUE_1
+        - name: PARAM_2
+          value: VALUE_2
+
+        举例:
+        env:
+        - name: MESSAGE
+          value: "hello world"
+        command: ["/bin/sh", "-c"]
+        args: ["/bin/echo \"${MESSAGE}\""]
+
+        修改后可以 测试一下 hello-world-pod.yaml 的使用方式!
+
+        通过环境变量获取 Downward API, 定义文件 downwardapi-env.yaml
+            [root@k8s-master ~]# kubectl exec downwardapi-env env|grep MY_POD
+            MY_POD_NAME=downwardapi-env
+            MY_POD_NAMESPACE=default
+            MY_POD_IP=10.32.0.2
+
+    数据持久化和共享
+        容器是临时存在的, 如果容器被销毁, 容器中的数据将会丢失! 容器提出了容器卷或者共享数据卷的概念!
+
+        docker 中的数据卷是 容器级别的, kubernetes 中的数据卷是 Pod 级别的! 即 Pod 内所有的容器共享 相同的数据卷, 实现 同一个 Pod 之内的数据共享!
+
+        对 hello-world-pod.yaml 再次进行改造, 实现 pod 数据卷!
 
 
+Pod 的网络:
+    [root@k8s-master ~]# kubectl get pod hello-world --template={{.status.podIP}}
+    10.40.0.1
+
+    设置 network 为 host 类型的 案例, 参考 nginx-network-host.yaml
+    测试结果为:
+    [root@k8s-master ~]# kubectl get pod my-app --template={{.status.podIP}}
+    192.168.188.47
+
+Pod 的重启策略:
+    restartPolicy 有三种可选项: Always, OnFailure, Never
+
+Pod 的状态和声明周期
+
+    容器状态 STATUS
+    192.168.188.47[root@k8s-master ~]# kubectl get pod
+    NAME          READY   STATUS      RESTARTS   AGE
+    hello-world   0/2     Completed   0          86m
+    my-app        1/1     Running     0          10m
+
+    查询 Pod 详细信息
+    kubectl describe pod hello-world
+
+    查询 容器生命周期 处在哪个阶段:
+    kubectl get pods hello-world --template={{.status.phase}}
+
+自定义 Pod 检查:
+    当 Pod 已经运行时并不能代表 当前 Pod 就可以接收请求, 可能处于阻塞状态!
+
+    kubernetes 提供了两种检查: 健康检查 (Liveness Probe)和 准备检查 (Readiness Probe)!
+    并且用三种命令 配合使用 ExecAtion, TCPSocketAction, HTTPGetAction!
+
+    ExecAtion
+        当命令执行成功(返回码为0), 检查成功!
+
+        示例:
+        exec:
+            command:
+            - cat
+            - /tmp/health
+
+    TCPSockerAction:
+        当容器中的TCP端口被占用, 表示成功
+
+        示例:
+        tcpSocket:
+            port: 8080
 
 
+    HTTPGetAction:
+        当响应码 介于 200 ~ 400 之间时, 检查成功!
+
+        配置参数:
+            path: 请求 URI 路径, 可选项
+            port: 请求 端口
+            host: 请求 IP, 默认为 Pod 的 podIP
+            scheme: 请求协议, 默认为 HTTP
+
+        示例:
+        httpGet:
+            path: /healthz
+            port: 8080
 
 
+    健康检查具体案例:
+        1、创建 liveness-exec-pod.yaml
+
+        2、执行 创建 pod
+          kubectl create -f /home/chapter_04/liveness-exec-pod.yaml
+
+        3、查询 pod 事件, 可以看到 Liveness Probe 检查失败
+        [root@k8s-master ~]# kubectl describe pod liveness-exec-pod | grep Unhealthy
+        Warning  Unhealthy  13m (x130 over 3h12m)   kubelet, k8s-node-3  Liveness probe failed: cat: /tmp/health: No such file or directory
+
+    准备检查具体案例:
+        1、创建 readiness-exec-pod.yaml
+
+        2、执行 创建 pod
+        kubectl create -f /home/chapter_04/readiness-exec-pod.yaml
+
+        3、查询 pod 事件, 可以看到 Liveness Probe 检查失败
+        [root@k8s-master ~]# kubectl describe pod readiness-exec-pod | grep Unhealthy
 
 
+调度 pod:
+    将 pod 发布到指定的 node 节点中, 这里只介绍一种 nodeName 属性! (不推荐使用, 因为 kubernetes 自动调度算法技术 已经 非常成熟了)
+
+    举例案例:
+        1、创建 nginx-pod-node.yaml 文件
+
+        2、执行创建 pod
+        kubectl create -f /home/chapter_04/nginx-pod-node.yaml
+
+        3、查询 当前 pod 所在 node 节点 即为 nodeName: k8s-node-1
+        [root@k8s-master ~]# kubectl get pod -o wide
+        NAME                 READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        nginx-pod-node       1/1     Running   0          24s   10.32.0.2   k8s-node-1   <none>           <none>
+
+Pod 日志查询:
+
+    查看 pod 的详细信息指令: kubectl describe pod pod_name
+    kubectl describe pod
+
+    日志查询具体案例:
+        1、创建 log-pod.yaml
+
+        2、根据 yaml 文件 创建 pod
+
+        3、查看日志
+        [root@k8s-master ~]# kubectl get pod log-pod -o wide
+        NAME      READY   STATUS      RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        log-pod   0/2     Completed   0          16s   10.34.0.1   k8s-node-3   <none>           <none>
+
+        [root@k8s-master ~]# kubectl logs log-pod container1
+        container1: 2022-05-31 19:01:07.944392455+00:00
+
+        [root@k8s-master ~]# kubectl logs log-pod container2
+        container2: 2022-05-31 19:01:08.175822603+00:00
 
 
-
-
-
-
-
-
-
-
-
-
+kubernetes 进入 pod 容器:
+    kubectl exec -it pod_name /bin/bash

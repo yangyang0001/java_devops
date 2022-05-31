@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Pod
+metadata:
+spec:
+  restartPolicy: Maybe
+  containers:
+  - name: hello-world
+    image: centos:7
+    command: ["/bin/echo", "Hello", "World"]

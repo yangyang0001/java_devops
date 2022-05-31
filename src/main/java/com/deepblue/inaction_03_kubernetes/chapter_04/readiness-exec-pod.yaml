@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: readiness-exec-pod
+  labels:
+    test: readiness
+spec:
+  containers:
+  - name: readiness
+    image: centos:7
+    command:
+    - /bin/sh
+    -  -c
+    - echo ok > /tmp/ready; sleep 60; rm -rf /tmp/health; sleep 600
+    livenessProbe:
+      exec:
+        command:
+        - cat
+        - /tmp/ready

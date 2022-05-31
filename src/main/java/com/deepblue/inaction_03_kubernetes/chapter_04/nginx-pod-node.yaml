@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: nginx-pod-node
+spec:
+  containers:
+  - name: nginx-pod-node
+    image: nginx
+    ports:
+    - name: web
+      containerPort: 80
+      protocol: TCP
+      hostIP: 0.0.0.0
+      hostPort: 80
+  nodeName: k8s-node-1
