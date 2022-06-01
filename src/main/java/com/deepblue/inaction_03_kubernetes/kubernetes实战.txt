@@ -472,3 +472,189 @@ Pod 日志查询:
 
 kubernetes 进入 pod 容器:
     kubectl exec -it pod_name /bin/bash
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+--------------------------------------------------------- 第5章 Replication Controller -----------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+ReplicationController 是 kubernetes 中的另一个核心概念! 它可以指定 Pod 的副本数量! 在此基础上又添加了新的功能如 弹性伸缩、滚动升级等!
+
+持续运行的 Pod
+    注意: pod 的 名称是以 replicationcontroller name 为前缀的一个名称! 后面5个字符为随机生成的字符串! 举例: my-nginx-42lrz
+
+    具体案例:
+    1、创建 文件 my-nginx-rc.yaml
+
+    2、根据创建的文件 创建 replicationcontroller
+        kubectl create -f /home/chapter_05/my-nginx-rc.yaml
+
+    3、查看 replicationcontroller
+        [root@k8s-master ~]# kubectl get replicationcontroller -o wide
+        NAME       DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES   SELECTOR
+        my-nginx   2         2         2       25s   nginx        nginx    app=my-nginx
+
+    4、获取 Pod 相关信息
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME             READY   STATUS    RESTARTS   AGE     IP          NODE         NOMINATED NODE   READINESS GATES
+        my-nginx-42lrz   1/1     Running   0          2m23s   10.34.0.1   k8s-node-3   <none>           <none>
+        my-nginx-5xrfg   1/1     Running   0          2m23s   10.32.0.2   k8s-node-1   <none>           <none>
+
+    5、测试删除 pod 后, 是否会重新创建一个 保证 pod 运行副本的数量!
+        kubectl delete pod my-nginx-42lrz
+
+    6、删除 replicationcontroller 后 pod 也会随之删除
+        kubectl delete replicationcontroller my-nginx
+
+Pod 模板
+    模板案例:
+    1、创建 nginx-pod-template.yaml
+
+    2、根据文件 创建 pod template
+       kubectl create -f /home/chapter_05/nginx-pod-template.yaml
+
+    3、查询 pod template
+        [root@k8s-master ~]# kubectl get podtemplate
+        NAME             CONTAINERS   IMAGES   POD LABELS
+        nginx-template   nginx        nginx    app=nginx-template
+
+
+Replication Controller 和 Pod 的关系:
+    常用查询命令:
+    [root@k8s-master ~]# kubectl get pods --selector name --label-columns=name,version
+    NAME                 READY   STATUS    RESTARTS   AGE     NAME           VERSION
+    mine-nginx-1-dcdlm   1/1     Running   0          3m37s   mine-nginx-4   v1
+    mine-nginx-1-phcsf   1/1     Running   0          3m37s   mine-nginx-4   v1
+    mine-nginx-1-tqkrm   1/1     Running   0          3m37s   mine-nginx-4   v1
+
+
+    ReplicationController 通过 spec.selector 和 pod 的 labels 进行关联!
+
+    具体案例:
+        1、创建 replication 和 containers 具有不同的标签的 mine-nginx-rc.yaml
+
+
+        2、根据文件 创建 replication controller
+            kubectl create -f /home/chapter_05/mine-nginx-rc.yaml
+
+            注意 replication controller 中的 spec.selector 标签 必须 和 template.metadata.labels 标签一致 key value 必须一致!
+            否则报错:
+            [root@k8s-master ~]# kubectl create -f /home/chapter_05/mine-nginx-rc.yaml
+            The ReplicationController "mine-nginx-1" is invalid: spec.template.metadata.labels: Invalid value: map[string]string{"name":"mine-nginx-4", "version":"v1"}: `selector` does not match template `labels`
+
+        3、查询相关pod
+            [root@k8s-master ~]# kubectl get pods --selector name --label-columns=name
+            NAME                 READY   STATUS    RESTARTS   AGE   NAME
+            mine-nginx-1-db58r   1/1     Running   0          21s   mine-nginx-4
+            mine-nginx-1-kcnvp   1/1     Running   0          21s   mine-nginx-4
+            mine-nginx-1-kttwn   1/1     Running   0          21s   mine-nginx-4
+
+        4、修改已经存在的 pod 的 标签, 举例: 修改 mine-nginx-1-db58r 的标签为 debug
+            [root@k8s-master ~]# kubectl label pod mine-nginx-1-db58r name=debug --overwrite
+            pod/mine-nginx-1-db58r labeled
+
+            [root@k8s-master ~]# kubectl get pods --selector name --label-columns=name
+            NAME                 READY   STATUS              RESTARTS   AGE     NAME
+            mine-nginx-1-db58r   1/1     Running             0          4m39s   debug               # 标签已经变为 debug
+            mine-nginx-1-df5zw   0/1     ContainerCreating   0          3s      mine-nginx-4        # 因为 replicationcontroller 要保证副本的数量, 所以重新创建了一个
+            mine-nginx-1-kcnvp   1/1     Running             0          4m39s   mine-nginx-4
+            mine-nginx-1-kttwn   1/1     Running             0          4m39s   mine-nginx-4
+
+
+ReplicationController 的伸缩性:
+    伸缩原理: 通过控制 pod 副本的数量来进行伸缩!
+
+    具体案例:
+        1、创建 replication controller 文件 nginx-scale-rc.yaml
+
+        2、通过 文件创建 replication controller
+            [root@k8s-master ~]# kubectl create -f /home/chapter_05/nginx-scale-rc.yaml
+            replicationcontroller/nginx-scale created
+
+        3、查看 pod , 主要观察 replicas 的数量
+            [root@k8s-master ~]# kubectl get replicationcontroller
+            NAME          DESIRED   CURRENT   READY   AGE
+            nginx-scale   1         1         1       3s                # ready = 1 : 表示有1个 pod 副本
+
+        4、扩容, 使副本的数量变为 3
+            [root@k8s-master ~]# kubectl scale replicationcontroller nginx-scale --replicas=3
+            replicationcontroller/nginx-scale scaled
+
+            [root@k8s-master ~]# kubectl get replicationcontroller
+            NAME          DESIRED   CURRENT   READY   AGE
+            nginx-scale   3         3         3       4m14s             # ready = 3 : 表示有3个 pod 副本
+
+        5、缩容, 使副本的数量变为1
+            [root@k8s-master ~]# kubectl scale replicationcontroller nginx-scale --replicas=1
+            replicationcontroller/nginx-scale scaled
+
+自动伸缩: 了解一下!
+
+滚动升级
+    4个 version=1 的 pod, 滚动升级称为 4个 version=2 的 pod
+
+    1、创建 文件 rolling-upgrade-v1.yaml
+
+    2、根据文件 创建 replication controller
+        kubectl create -f /home/chapter_05/rolling-upgrade-v1.yaml
+
+    3、查询当前 详细信息
+        [root@k8s-master ~]# kubectl get pods --selector name --label-columns=name,version
+        NAME                  READY   STATUS    RESTARTS   AGE     NAME         VERSION
+        mine-nginx-v1-bbf57   1/1     Running   0          2m35s   mine-nginx   v1
+        mine-nginx-v1-d6lcn   1/1     Running   0          2m35s   mine-nginx   v1
+        mine-nginx-v1-k8spz   1/1     Running   0          2m35s   mine-nginx   v1
+        mine-nginx-v1-xwbl9   1/1     Running   0          2m35s   mine-nginx   v1
+
+    4、升级准备: 创建 rolling-upgrade-v2.yaml
+
+    5、执行滚动升级
+        [root@k8s-master ~]# kubectl rolling-update mine-nginx-v1 -f /home/chapter_05/rolling-upgrade-v2.yaml --update-period=10s
+        Command "rolling-update" is deprecated, use "rollout" instead
+        Created mine-nginx-v2
+        Scaling up mine-nginx-v2 from 0 to 4, scaling down mine-nginx-v1 from 4 to 0 (keep 4 pods available, don't exceed 5 pods)
+        Scaling mine-nginx-v2 up to 1
+        Scaling mine-nginx-v1 down to 3
+        Scaling mine-nginx-v2 up to 2
+        Scaling mine-nginx-v1 down to 2
+        Scaling mine-nginx-v2 up to 3
+        Scaling mine-nginx-v1 down to 1
+        Scaling mine-nginx-v2 up to 4
+        Scaling mine-nginx-v1 down to 0
+        Update succeeded. Deleting old controller: mine-nginx-v1
+        Renaming mine-nginx-v2 to mine-nginx-v1
+        replicationcontroller/mine-nginx-v1 rolling updated
+
+deployment: 了解这种 kind=Deployment
+
+一次性任务的 pod:
+    kind = Job
+
+    举例:
+    1、创建 计算 pi 的 yaml 文件, pi-job.yaml
+
+    2、执行创建
+        [root@k8s-master ~]# kubectl create -f /home/chapter_05/pi-job.yaml
+
+        问题:
+            The Job "pi-job" is invalid: spec.selector: Invalid value: v1.LabelSelector{MatchLabels:map[string]string{"controller-uid":"2b1a2f89-e1e2-11ec-8d1e-000c296c1229", "name":"pi-job"}, MatchExpressions:[]v1.LabelSelectorRequirement(nil)}: `selector` not auto-generated
+
+        解决:
+            在 selector 上面添加一行!
+            manualSelector: true          # 必须添加这行, 否则 job 创建失败
+
+            [root@k8s-master ~]# kubectl create -f /home/chapter_05/pi-job.yaml
+            job.batch/pi-job created
+
+    3、执行相关的查看工作
+        [root@k8s-master ~]# kubectl get pod                        # 只会执行一次, 这里显示是已经 完成的状态: completed
+        NAME           READY   STATUS      RESTARTS   AGE
+        pi-job-25x4z   0/1     Completed   0          2m3s
+
+        [root@k8s-master ~]# kubectl logs pi-job-25x4z
+        3.1415926535897932384626433832795028841971693993751058209749445923078164062862089986280348253421170679821480865132823066470938446095505822317253594081284811174502841027019385211055596446229489549303819644288109756659334461284756482337867831652712019091456485669234603486104543266482133936072602491412737245870066063155881748815209209628292540917153643678925903600113305305488204665213841469519415116094330572703657595919530921861173819326117931051185480744623799627495673518857527248912279381830119491298336733624406566430860213949463952247371907021798609437027705392171762931767523846748184676694051320005681271452635608277857713427577896091736371787214684409012249534301465495853710507922796892589235420199561121290219608640344181598136297747713099605187072113499999983729780499510597317328160963185950244594553469083026425223082533446850352619311881710100031378387528865875332083814206171776691473035982534904287554687311595628638823537875937519577818577805321712268066130019278766111959092164201989380952572010654858632788659361533818279682303019520353018529689957736225994138912497217752834791315155748572424541506959508295331168617278558890750983817546374649393192550604009277016711390098488240128583616035637076601047101819429555961989467678374494482553797747268471040475346462080466842590694912933136770289891521047521620569660240580381501935112533824300355876402474964732639141992726042699227967823547816360093417216412199245863150302861829745557067498385054945885869269956909272107975093029553211653449872027559602364806654991198818347977535663698074265425278625518184175746728909777727938000816470600161452491921732172147723501414419735685481613611573525521334757418494684385233239073941433345477624168625189835694855620992192221842725502542568876717904946016534668049886272327917860857843838279679766814541009538837863609506800642251252051173929848960841284886269456042419652850222106611863067442786220391949450471237137869609563643719172874677646575739624138908658326459958133904780275901
+
+
+
+
+
+

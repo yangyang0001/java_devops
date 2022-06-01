@@ -1,0 +1,24 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pi-job                  # replication controller 的名称
+  labels:
+    name: pi-job                # replication controller 的标签
+spec:
+  completions: 1
+  parallelism: 1
+  manualSelector: true          # 必须添加这行, 否则 job 创建失败
+  selector:                     # replication controller 选择器
+    matchLabels:
+      name: pi-job              # replication controller 选择器 必须 和 pod 标签一致 (key value 都必须一致, 否则报错)
+  template:
+    metadata:
+      name: pi-job
+      labels:
+        name: pi-job            # 所有副本 pod 的标签, 上面的 selector 和 这里进行关联!
+    spec:
+      containers:
+      - name: pi-job
+        image: perl
+        command: ["perl", "-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      restartPolicy: Never

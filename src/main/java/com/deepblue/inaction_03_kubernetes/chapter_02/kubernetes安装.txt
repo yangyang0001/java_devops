@@ -720,6 +720,9 @@ TODO 这种安装方式 虽然启动了集群但是, docker 版本有冲突, 一
 
 
 
+部署 k8s dashboard ui
+    下载 yaml https://rawgit.com/kubernetes/dashboard/master/src/deploy/kubernetes-dashboard.yaml
+
 
 
 

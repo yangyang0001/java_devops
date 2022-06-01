@@ -1,0 +1,22 @@
+apiVersion: v1
+kind: ReplicationController
+metadata:
+  name: mine-nginx-v1           # replication controller 的名称
+  labels:
+    name: mine-nginx            # replication controller 的标签
+spec:
+  replicas: 4
+  selector:                     # replication controller 选择器
+    name: mine-nginx            # replication controller 选择器 必须 和 pod 标签一致 (key value 都必须一致, 否则报错)
+    version: v1
+  template:
+    metadata:
+      labels:
+        name: mine-nginx        # 所有副本 pod 的标签, 上面的 selector 和 这里进行关联!
+        version: v1
+    spec:
+      containers:
+      - name: mine-nginx
+        image: nginx
+        ports:
+        - containerPort: 80
