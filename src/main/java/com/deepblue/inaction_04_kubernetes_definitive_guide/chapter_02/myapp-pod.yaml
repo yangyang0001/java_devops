@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: myapp-pod
+  labels:
+    app: myapp-pod
+    version: v1
+spec:
+  containers:
+  - name: myapp
+    image: centos:7
+    command:
+      - /bin/sh
+      - -c
+      - "echo containers is app ; sleep 100"

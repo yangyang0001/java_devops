@@ -1,0 +1,371 @@
+--------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------- 第1章 Kubernetes 基本组件和相关概念 ----------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+Pod 的分类:
+    自主式 Pod 和 被控制的 Pod!
+
+    自主式 Pod:
+        不被 ReplicationController 管理!
+
+    被控制 Pod:
+        ReplicationController: Pod 副本控制器
+        ReplicaSet: 会代替掉 ReplicationController
+        Deployment: 需要创建 ReplicationController
+
+        StatefulSet: 主要针对有状态服务设计的, 无状态服务(ReplicaSet 和 Deployment)
+        DaemonSet: 后台进程
+
+        Job: 只执行一次的任务
+        CronJob: 定时任务
+
+网络通信分类:
+    同一个Pod 之间的 container 之间通信, 本就在同一个内网!
+    同一台物理机之间的 Pod 与 Pod 的通信, 是通过 docker0 网桥实现!
+    不同物理机之间的 Pod 与 Pod 的通信, 是通过 docker0 + 隧道技术(Flannel, Weave) 等实现!
+
+    Pod 和 Service 之间的通信: 目前基于性能考虑, 全部为 iptables 维护和转发! 采用 常用方式为 NodePortService, LoadBalancerService, Ingress
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------- 第2,3,4章 Kubernetes 基础组件和相关概念 -----------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+kubernetes 中的资源:
+    集群资源分类(了解即可):
+        命名空间级别:
+            kind 有定义的!
+
+        集群级别:
+            Namespace, Node 等
+
+        元数据类型:
+            HPA, PodTemplate, LimitRange
+
+
+    yaml 格式:
+        yaml 不允许使用Tab 键, 只能使用空格!
+
+        表示 key / value 值:
+        username: zhangsan
+
+
+
+    yaml 文件中必须不能少的属性:
+
+    如何查看某个资源类型的 yaml 中包含的元素呢? 使用命令:
+        查看Pod 元素详解: kubectl explain pod
+        查看Pod 中的元素: kubectl explain pod.spec
+        查看Service 元素详解: kubectl explain service
+
+Pod 的生命周期: InitC, START, MainC, STOP, Readiness, Liveness
+
+    InitC
+    案例演示:
+        1、创建 pod 文件 init-pod.yaml 文件
+
+        2、根据 init-pod.yaml 文件 创建 pod
+            [root@k8s-master ~]# kubectl create -f /home/chapter_03/init-pod.yaml
+            pod/myapp-pod created
+
+        3、查询 初始化 pod 的状态
+            [root@k8s-master ~]# kubectl get pods
+            NAME        READY   STATUS     RESTARTS   AGE
+            myapp-pod   0/1     Init:0/2   0          2m50s        # TODO STATUS 中的 Init:0/2 初始化没有完成任何一个!
+
+            [root@k8s-master ~]# kubectl describe pod myapp-pod
+            Name:               myapp-pod
+            Namespace:          default
+            Priority:           0
+            PriorityClassName:  <none>
+            Node:               k8s-node-1/192.168.188.46
+            Start Time:         Tue, 14 Jun 2022 11:42:59 +0800
+            Labels:             app=myapp-pod
+                                version=v1
+            Annotations:        <none>
+            Status:             Pending
+            IP:                 10.32.0.2
+            Init Containers:
+              init-myservice:
+                Container ID:  docker://74d007b9be807a0bdd1f5f1716f7034d9e50f9b1003eb71faf90d4d874102f48
+                Image:         busybox
+                Image ID:      docker-pullable://busybox@sha256:5acba83a746c7608ed544dc1533b87c737a0b0fb730301639a0179f9344b1678
+                Port:          <none>
+                Host Port:     <none>
+                Command:
+                  sh
+                  -c
+                  until nslookup myservice; do echo waiting for myservice; sleep 2; done;
+                State:          Running
+                  Started:      Tue, 14 Jun 2022 11:43:15 +0800
+                Ready:          False
+                Restart Count:  0
+                Environment:    <none>
+                Mounts:
+                  /var/run/secrets/kubernetes.io/serviceaccount from default-token-v5l7t (ro)
+              init-mydb:
+                Container ID:
+                Image:         busybox
+                Image ID:
+                Port:          <none>
+                Host Port:     <none>
+                Command:
+                  sh
+                  -c
+                  until nslookup mydb; do echo waiting for mydb; sleep 2; done;
+                State:          Waiting
+                  Reason:       PodInitializing
+                Ready:          False
+                Restart Count:  0
+                Environment:    <none>
+                Mounts:
+                  /var/run/secrets/kubernetes.io/serviceaccount from default-token-v5l7t (ro)
+            Containers:
+              myapp:
+                Container ID:
+                Image:         centos:7
+                Image ID:
+                Port:          <none>
+                Host Port:     <none>
+                Command:
+                  /bin/sh
+                  -c
+                  echo containers is app ; sleep 100
+                State:          Waiting
+                  Reason:       PodInitializing
+                Ready:          False
+                Restart Count:  0
+                Environment:    <none>
+                Mounts:
+                  /var/run/secrets/kubernetes.io/serviceaccount from default-token-v5l7t (ro)
+            Conditions:
+              Type              Status
+              Initialized       False
+              Ready             False
+              ContainersReady   False
+              PodScheduled      True
+            Volumes:
+              default-token-v5l7t:
+                Type:        Secret (a volume populated by a Secret)
+                SecretName:  default-token-v5l7t
+                Optional:    false
+            QoS Class:       BestEffort
+            Node-Selectors:  <none>
+            Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                             node.kubernetes.io/unreachable:NoExecute for 300s
+            Events:
+              Type    Reason     Age   From                 Message
+              ----    ------     ----  ----                 -------
+              Normal  Scheduled  72s   default-scheduler    Successfully assigned default/myapp-pod to k8s-node-1
+              Normal  Pulling    72s   kubelet, k8s-node-1  Pulling image "busybox"
+              Normal  Pulled     56s   kubelet, k8s-node-1  Successfully pulled image "busybox"
+              Normal  Created    56s   kubelet, k8s-node-1  Created container init-myservice
+              Normal  Started    56s   kubelet, k8s-node-1  Started container init-myservice
+
+        根据 status 中 为 Init:0/2 和上面的 原因来看 是因为没有启动 Service init-service 和 Service init-mydb;
+
+        接着启动 Service myservice 和 pod mydb
+        4、创建文件 service 文件 init-myservice-service.yaml
+
+        5、根据 init-myservice-service.yaml 文件, 创建相关的 service
+            [root@k8s-master ~]# kubectl create -f /home/chapter_03/init-myservice-service.yaml
+            service/myservice created
+
+        6、查询 service 和 相关的 Pod 状态
+            [root@k8s-master ~]# kubectl get service
+            NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+            kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP   9m36s
+            myservice    ClusterIP   10.109.110.111   <none>        80/TCP    6s
+
+            [root@k8s-master ~]# kubectl get pods
+            NAME        READY   STATUS     RESTARTS   AGE
+            myapp-pod   0/1     Init:1/2   0          9m54s         # TODO STATUS 中的 Init:1/2 初始化完成了一个
+
+
+        7、 创建文件 service 文件 init-mydb-service.yaml
+
+        8、 根据 init-mydb-service.yaml 文件, 创建相关的 service
+            [root@k8s-master ~]# kubectl create -f /home/chapter_03/init-mydb-service.yaml
+            service/mydb created
+
+        9、 查询 service 和 相关的 Pod 状态
+            [root@k8s-master ~]# kubectl get service
+            NAME         TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)   AGE
+            kubernetes   ClusterIP   10.96.0.1        <none>        443/TCP   15m
+            mydb         ClusterIP   10.111.210.127   <none>        80/TCP    8s
+            myservice    ClusterIP   10.109.110.111   <none>        80/TCP    5m59s
+
+
+            [root@k8s-master ~]# kubectl get pods
+            NAME        READY   STATUS    RESTARTS   AGE
+            myapp-pod   1/1     Running   0          15m            # TODO STATUS 中的 Running 中, 同时 READY 也准备完毕!
+
+    MainC
+        主容器 就是我们自己的业务镜像打成 image 组成的 pod 下的 container!
+
+    Readiness
+        1、创建 readiness 相关的 pod yaml 文件, readiness-exec-pod.yaml
+
+        2、根据文件 创建相关的 pod
+            [root@k8s-master ~]# kubectl create -f /home/chapter_03/readiness-exec-pod.yaml
+
+        3、查询 pod 相关信息
+            [root@k8s-master ~]# kubectl get pods
+
+        4、可以进入 pod 中查看
+            [root@k8s-master ~]# kubectl exec readiness-exec-pod -it -- /bin/sh
+            sh-4.2# cd /tmp/
+
+            sh-4.2# ls
+            ks-script-DrRL8A  ready  yum.log
+
+            sh-4.2# cat ready
+            ok
+
+            sh-4.2# cat ready
+            cat: ready: No such file or directory
+
+            sh-4.2# ls
+            ks-script-DrRL8A  yum.log
+
+        5、原理解析:
+            1、在 readiness-exec-pod 中, 完成初始化的任务!
+            2、在 readiness 容器中创建 /tmp/ready 文件并 写入 ok, 60秒后删除这个文件;
+            3、通过 cat /tmp/ready 进行指令检查, 如果检查结果为
+                成功: 每隔 10秒 再次检查!
+                失败: kubernetes 会认为当前服务端没有准备好, 进来的请求不会分发给当前 pod!
+
+
+    Liveness
+        1、创建 liveness 相关的 pod yaml 文件, liveness-exec-pod.yaml
+
+        2、根据文件 创建相关的 pod
+            kubectl create -f /home/chapter_03/liveness-exec-pod.yaml
+            pod/liveness-exec-pod created
+
+        3、查询 pod 相关信息
+            [root@k8s-master ~]# kubectl get pods -w
+            NAME                READY   STATUS    RESTARTS   AGE
+            liveness-exec-pod   1/1     Running   0          5s
+            liveness-exec-pod   1/1     Running   1          2m1s
+            liveness-exec-pod   1/1     Running   2          4m1s
+
+        4、健康检查原理, 参考一下 03_监健康检查和准备检查.png
+            健康检查 liveness 是会根据 容器的启动策略, 自动重启! 健康检查结果: 如果为假, 则重启! 每隔一定的时间都会重新检测健康检查!
+
+
+    START 和 STOP 动作:
+        可以通过以下指令查看:
+        [root@k8s-master ~]# kubectl explain pod.spec.containers.lifecycle
+        KIND:     Pod
+        VERSION:  v1
+
+        RESOURCE: lifecycle <Object>
+
+        DESCRIPTION:
+             Actions that the management system should take in response to container
+             lifecycle events. Cannot be updated.
+
+             Lifecycle describes actions that the management system should take in
+             response to container lifecycle events. For the PostStart and PreStop
+             lifecycle handlers, management of the container blocks until the action is
+             complete, unless the container process fails, in which case the handler is
+             aborted.
+
+        FIELDS:
+           postStart    <Object>
+             PostStart is called immediately after a container is created. If the
+             handler fails, the container is terminated and restarted according to its
+             restart policy. Other management of the container blocks until the hook
+             completes. More info:
+             https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+
+           preStop      <Object>
+             PreStop is called immediately before a container is terminated due to an
+             API request or management event such as liveness probe failure, preemption,
+             resource contention, etc. The handler is not called if the container
+             crashes or exits. The reason for termination is passed to the handler. The
+             Pod's termination grace period countdown begins before the PreStop hooked
+             is executed. Regardless of the outcome of the handler, the container will
+             eventually terminate within the Pod's termination grace period. Other
+             management of the container blocks until the hook completes or until the
+             termination grace period is reached. More info:
+             https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/#container-hooks
+
+
+        举例说明:
+            1、创建 MainC 的 启动动作 和 退出动作 相关的 yaml 文件, start-stop-pod.yaml
+
+            2、根据文件 创建相关的 pod
+            [root@k8s-master ~]# kubectl create -f /home/chapter_03/start-stop-pod.yaml
+            pod/start-stop-pod created
+
+            3、查询 pod 相关信息
+            [root@k8s-master ~]# kubectl get pods -o wide -w
+            NAME             READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+            start-stop-pod   1/1     Running   0          21s   10.32.0.2   k8s-node-1   <none>           <none>
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------- 第5章 Kubernetes 不同资源的认知和使用 -------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+ReplicationController 即将被废弃掉, 但在 实战书籍中是非常重要的概念!
+
+ReplicaSet 的使用案例:
+    1、创建相关的 ReplicaSet yaml 文件 frontend-replicaset.yaml
+
+    2、根据配置文件 创建 ReplicaSet
+        [root@k8s-master ~]# kubectl create -f /home/chapter_05/frontend-replicaset.yaml
+        replicaset.extensions/frontend created
+
+
+    3、查询 ReplicaSet 相关的信息
+        [root@k8s-master ~]# kubectl get replicaset
+        NAME       DESIRED   CURRENT   READY   AGE
+        frontend   3         3         3       86s
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME             READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        frontend-cg286   1/1     Running   0          18s   10.40.0.1   k8s-node-2   <none>           <none>
+        frontend-g4mz4   1/1     Running   0          18s   10.32.0.2   k8s-node-1   <none>           <none>
+        frontend-m7j9l   1/1     Running   0          18s   10.34.0.1   k8s-node-3   <none>           <none>
+
+Deployment 的使用案例:
+    1、创建相关的 Deployment yaml 文件 nginx-deployment.yaml
+
+    2、根据配置文件 创建 Deployment
+        [root@k8s-master ~]# kubectl apply -f /home/chapter_05/nginx-deployment.yaml --record
+
+
+    3、查询 ReplicaSet 相关的信息
+        [root@k8s-master ~]# kubectl get deployment -o wide
+        NAME               READY   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS   IMAGES   SELECTOR
+        nginx-deployment   3/3     3            3           2m13s   nginx        nginx    name=nginx
+
+        [root@k8s-master ~]# kubectl get replicaset -o wide
+        NAME                          DESIRED   CURRENT   READY   AGE     CONTAINERS   IMAGES   SELECTOR
+        nginx-deployment-64bb598779   3         3         3       2m19s   nginx        nginx    name=nginx,pod-template-hash=64bb598779
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME                                READY   STATUS    RESTARTS   AGE     IP          NODE         NOMINATED NODE   READINESS GATES
+        nginx-deployment-64bb598779-kljrp   1/1     Running   0          2m30s   10.32.0.2   k8s-node-1   <none>           <none>
+        nginx-deployment-64bb598779-n2dcd   1/1     Running   0          2m30s   10.34.0.1   k8s-node-3   <none>           <none>
+        nginx-deployment-64bb598779-s6f5l   1/1     Running   0          2m30s   10.40.0.1   k8s-node-2   <none>           <none>
+
+
+
+    Deployment 中的扩容缩容:
+        扩容为 10个 pod:
+        [root@k8s-master ~]# kubectl scale deployment nginx-deployment --replicas=10
+        deployment.extensions/nginx-deployment scaled
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME                                READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        nginx-deployment-64bb598779-5rqzh   1/1     Running   0          82s   10.34.0.3   k8s-node-3   <none>           <none>
+        nginx-deployment-64bb598779-5tbr7   1/1     Running   0          82s   10.40.0.3   k8s-node-2   <none>           <none>
+        nginx-deployment-64bb598779-5zfz2   1/1     Running   0          82s   10.32.0.4   k8s-node-1   <none>           <none>
+        nginx-deployment-64bb598779-9kk4g   1/1     Running   0          82s   10.32.0.3   k8s-node-1   <none>           <none>
+        nginx-deployment-64bb598779-kljrp   1/1     Running   0          49m   10.32.0.2   k8s-node-1   <none>           <none>
+        nginx-deployment-64bb598779-lhv2z   1/1     Running   0          83s   10.32.0.5   k8s-node-1   <none>           <none>
+        nginx-deployment-64bb598779-mqc4j   1/1     Running   0          82s   10.34.0.4   k8s-node-3   <none>           <none>
+        nginx-deployment-64bb598779-n2dcd   1/1     Running   0          49m   10.34.0.1   k8s-node-3   <none>           <none>
+        nginx-deployment-64bb598779-r2cwc   1/1     Running   0          82s   10.40.0.4   k8s-node-2   <none>           <none>
+        nginx-deployment-64bb598779-s6f5l   1/1     Running   0          49m   10.40.0.1   k8s-node-2   <none>           <none>

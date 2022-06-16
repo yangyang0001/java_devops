@@ -1,0 +1,29 @@
+apiServer:
+  certSANs:
+    - api.k8s.local
+    - ydzs-master2
+    - ydzs-master3
+    - 10.151.30.11
+    - 10.151.30.70
+    - 10.151.30.71
+  extraArgs:
+    authorization-mode: Node,RBAC
+  timeoutForControlPlane: 4m0s
+apiVersion: kubeadm.k8s.io/v1beta1
+certificatesDir: /etc/kubernetes/pki
+clusterName: kubernetes
+controlPlaneEndpoint: ""
+controllerManager: {}
+dns:
+  type: CoreDNS
+etcd:
+  local:
+    dataDir: /var/lib/etcd
+imageRepository: docker.io/dustise
+kind: ClusterConfiguration
+kubernetesVersion: v1.14.0
+networking:
+  dnsDomain: cluster.local
+  podSubnet: 192.168.0.0/16
+  serviceSubnet: 10.96.0.0/12
+scheduler: {}

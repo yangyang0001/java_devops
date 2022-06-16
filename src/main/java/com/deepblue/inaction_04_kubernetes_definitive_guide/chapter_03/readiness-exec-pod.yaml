@@ -8,14 +8,9 @@ spec:
   containers:
   - name: readiness
     image: centos:7
-    command:
-    - /bin/sh
-    -  -c
-    - echo ok > /tmp/ready; sleep 60; rm -rf /tmp/ready; sleep 600
+    command: ["/bin/sh", "-c", "echo ok > /tmp/ready; sleep 60; rm -rf /tmp/ready; sleep 60"]
     readinessProbe:
       exec:
-        command:
-        - cat
-        - /tmp/ready
+        command: ["cat", "/tmp/ready"]
       initialDelaySeconds: 5
       periodSeconds: 10

@@ -720,10 +720,80 @@ TODO 这种安装方式 虽然启动了集群但是, docker 版本有冲突, 一
 
 
 
-部署 k8s dashboard ui
-    下载 yaml https://rawgit.com/kubernetes/dashboard/master/src/deploy/kubernetes-dashboard.yaml
+部署 k8s dashboard ui (master节点下执行)
+
+    下载安装部署 dashboard ui
+
+        1、下载yaml
+            [root@k8s-master ~]# wget https://raw.githubusercontent.com/kubernetes/dashboard/v2.6.0/aio/deploy/recommended.yaml
+
+        2、修改kubernetes-dashboard 的 Service类型
+            kind: Service
+            apiVersion: v1
+            metadata:
+              labels:
+                k8s-app: kubernetes-dashboard
+              name: kubernetes-dashboard
+              namespace: kubernetes-dashboard
+            spec:
+              type: NodePort                    # 添加类型
+              ports:
+                - port: 443
+                  targetPort: 8443
+                  nodePort: 30003               # 访问端口
+              selector:
+                k8s-app: kubernetes-dashboard
 
 
+        3、安装部署
+            [root@k8s-master ~]# kubectl create -f /home/chapter_02/recommended.yaml
+
+        4、查看 namespace 下的 kubernetes-dashboard下的资源
+            [root@k8s-master ~]# kubectl get pod,svc -n kubernetes-dashboard
+            NAME                                             READY   STATUS    RESTARTS   AGE
+            pod/dashboard-metrics-scraper-7fbb6ccf87-2s96q   1/1     Running   0          107s
+            pod/kubernetes-dashboard-59766c7444-xvsqt        1/1     Running   0          107s
+
+            NAME                                TYPE        CLUSTER-IP       EXTERNAL-IP   PORT(S)         AGE
+            service/dashboard-metrics-scraper   ClusterIP   10.102.116.160   <none>        8000/TCP        107s
+            service/kubernetes-dashboard        NodePort    10.109.100.52    <none>        443:30003/TCP   112s
+            
+            
+    创建访问账户，获取token
+
+        1、创建账号
+            [root@k8s-master ~]# kubectl create serviceaccount dashboard-admin -n kubernetes-dashboard
+
+        2、授权
+            [root@k8s-master ~]# kubectl create clusterrolebinding dashboard-admin-rb --clusterrole=cluster-admin --serviceaccount=kubernetes-dashboard:dashboard-admin
+
+        3、获取账号token
+            [root@k8s-master ~]# kubectl get secrets -n kubernetes-dashboard | grep dashboard-admin
+            dashboard-admin-token-6bh8g        kubernetes.io/service-account-token   3      33s
+
+            [root@k8s-master ~]# kubectl describe secrets dashboard-admin-token-6bh8g -n kubernetes-dashboard
+            Name:         dashboard-admin-token-6bh8g
+            Namespace:    kubernetes-dashboard
+            Labels:       <none>
+            Annotations:  kubernetes.io/service-account.name: dashboard-admin
+                          kubernetes.io/service-account.uid: 18455187-e645-11ec-8d1e-000c296c1229
+
+            Type:  kubernetes.io/service-account-token
+
+            Data
+            ====
+            namespace:  20 bytes
+            token:      eyJhbGciOiJSUzI1NiIsImtpZCI6IiJ9.eyJpc3MiOiJrdWJlcm5ldGVzL3NlcnZpY2VhY2NvdW50Iiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9uYW1lc3BhY2UiOiJrdWJlcm5ldGVzLWRhc2hib2FyZCIsImt1YmVybmV0ZXMuaW8vc2VydmljZWFjY291bnQvc2VjcmV0Lm5hbWUiOiJkYXNoYm9hcmQtYWRtaW4tdG9rZW4tNmJoOGciLCJrdWJlcm5ldGVzLmlvL3NlcnZpY2VhY2NvdW50L3NlcnZpY2UtYWNjb3VudC5uYW1lIjoiZGFzaGJvYXJkLWFkbWluIiwia3ViZXJuZXRlcy5pby9zZXJ2aWNlYWNjb3VudC9zZXJ2aWNlLWFjY291bnQudWlkIjoiMTg0NTUxODctZTY0NS0xMWVjLThkMWUtMDAwYzI5NmMxMjI5Iiwic3ViIjoic3lzdGVtOnNlcnZpY2VhY2NvdW50Omt1YmVybmV0ZXMtZGFzaGJvYXJkOmRhc2hib2FyZC1hZG1pbiJ9.kdvH_qFwIW-Vu0mYrnCDfpJUrAm64alM8UnORZYAjAPzE-70AgxbcMqI6_24JcrBCIgpjKMt5IjEejyCPkgucExtw0Xdhe-LIh084gfCAFub_UG-thXc3IDY5vYgeFZEkEKCjXMRPWcVLwKKzGonH9o6VklnQ6EYvcXZ1b3GKDBN_1MPr7iNT_IOBx000AUC478wXY3Zy2-oOi0vvWhcTGSzKwElOyR4zO8ZmXiNJgyA9kq9uF0_aGj-88ou0NhP6vsaNkOg1WP-7tsAZqsZfQdygOSFMaRkaoB6fti8tPbIvMKwlyDXmxG9d-OWqtHrojaOrAxE1oSMVGNqEpRhiQ
+            ca.crt:     1025 bytes
+
+
+
+        本地访问: (使用火狐浏览器 否则 mac pro 有各种限制!)
+
+            https://192.168.188.44:30003
+            https://192.168.188.46:30003
+            https://192.168.188.47:30003
+            https://192.168.188.48:30003
 
 
 

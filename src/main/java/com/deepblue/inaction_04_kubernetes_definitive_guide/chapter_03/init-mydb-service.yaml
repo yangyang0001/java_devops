@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: mydb                  # Service 的名称
+  labels:
+    name: mydb                # Service 的标签
+spec:
+  ports:
+    - port: 80                # Service 针对内部请求监听的端口
+      targetPort: 9377        # Pod 应用的端口
+      protocol: TCP

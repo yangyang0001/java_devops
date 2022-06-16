@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: start-stop-pod
+  labels:
+    app: start-stop
+spec:
+  containers:
+  - name: start-stop
+    image: nginx
+    lifecycle:
+      postStart:
+        exec:
+          command: ["/bin/sh", "-c", "echo nginx starting..."]
+      preStop:
+        exec:
+          command: ["/usr/sbin/nginx", "-s", "quit"]
