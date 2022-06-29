@@ -1,0 +1,25 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: hostpath-pod
+  labels:
+    app: hostpath-pod
+    version: v1
+spec:
+  containers:
+  - name: centos1
+    image: centos:7
+    command: ["/bin/sh", "-c", "while true; do sleep 5; done"]
+    volumeMounts:
+    - name: cache-volume
+      mountPath: /data1            # 挂载在容器中的位置
+  - name: centos2
+    image: centos:7
+    command: ["/bin/sh", "-c", "while true; do sleep 5; done"]
+    volumeMounts:
+    - name: cache-volume
+      mountPath: /data2            # 挂载在容器中的位置
+  volumes:
+  - name: cache-volume
+    hostPath:
+      path: /data                  # hostpath

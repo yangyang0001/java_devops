@@ -335,7 +335,7 @@ Deployment 的使用案例:
         [root@k8s-master ~]# kubectl apply -f /home/chapter_05/nginx-deployment.yaml --record
 
 
-    3、查询 ReplicaSet 相关的信息
+    3、查询 Deployment 相关的信息
         [root@k8s-master ~]# kubectl get deployment -o wide
         NAME               READY   UP-TO-DATE   AVAILABLE   AGE     CONTAINERS   IMAGES   SELECTOR
         nginx-deployment   3/3     3            3           2m13s   nginx        nginx    name=nginx
@@ -369,3 +369,729 @@ Deployment 的使用案例:
         nginx-deployment-64bb598779-n2dcd   1/1     Running   0          49m   10.34.0.1   k8s-node-3   <none>           <none>
         nginx-deployment-64bb598779-r2cwc   1/1     Running   0          82s   10.40.0.4   k8s-node-2   <none>           <none>
         nginx-deployment-64bb598779-s6f5l   1/1     Running   0          49m   10.40.0.1   k8s-node-2   <none>           <none>
+
+DaemonSet 使用案例:
+    核心原理: 在每个 node 节点上都会启动 有且只有一个 daemonset pod!
+
+    1、创建相关的 DaemonSet yaml 文件 nginx-daemonset.yaml
+
+    2、根据配置文件 创建 DaemonSet
+        [root@k8s-master ~]# kubectl create -f /home/chapter_05/nginx-daemonset.yaml
+        daemonset.extensions/nginx-daemonset created
+
+    3、查询 DaemonSet 相关的信息
+        [root@k8s-master ~]# kubectl get daemonset
+        NAME              DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+        nginx-daemonset   3         3         1       3            1           <none>          10s
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME                    READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        nginx-daemonset-g7bmr   1/1     Running   0          22s   10.40.0.1   k8s-node-2   <none>           <none>
+        nginx-daemonset-j8ctb   1/1     Running   0          22s   10.34.0.2   k8s-node-3   <none>           <none>
+        nginx-daemonset-x7btg   1/1     Running   0          22s   10.32.0.3   k8s-node-1   <none>           <none>
+
+Job 使用案例:
+    1、创建相关的 Job yaml 文件 pi-job.yaml
+
+    2、根据配置文件 创建 Job
+        [root@k8s-master ~]# kubectl create -f /home/chapter_05/pi-job.yaml
+        job.batch/pi-job created
+
+    3、查询 Job 相关的信息
+        [root@k8s-master ~]# kubectl get job
+        NAME     COMPLETIONS   DURATION   AGE
+        pi-job   1/1           2m15s      6m8s
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME           READY   STATUS      RESTARTS   AGE     IP          NODE         NOMINATED NODE   READINESS GATES
+        pi-job-gnzlz   0/1     Completed   0          3m31s   10.40.0.1   k8s-node-2   <none>           <none>
+
+        [root@k8s-master ~]# kubectl log pi-job-gnzlz
+        log is DEPRECATED and will be removed in a future version. Use logs instead.
+        3.1415926535897932385
+
+
+CronJob 使用案例:
+    1、创建相关的 CronJob yaml 文件 hello-cronjob.yaml
+
+    2、根据配置文件 创建 CronJob
+        [root@k8s-master ~]# kubectl create -f /home/chapter_05/hello-cronjob.yaml
+        cronjob.batch/hello-cronjob created
+
+    3、查询 CronJob 相关的信息
+        [root@k8s-master ~]# kubectl get cronjob -o wide
+        NAME            SCHEDULE      SUSPEND   ACTIVE   LAST SCHEDULE   AGE   CONTAINERS      IMAGES    SELECTOR
+        hello-cronjob   */1 * * * *   False     0        <none>          8s    hello-cronjob   busybox   <none>
+
+        [root@k8s-master ~]# kubectl get job -o wide
+        NAME                       COMPLETIONS   DURATION   AGE   CONTAINERS      IMAGES    SELECTOR
+        hello-cronjob-1655452800   1/1           18s        34s   hello-cronjob   busybox   controller-uid=7d34e6a7-ee13-11ec-9f88-000c296c1229
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME                             READY   STATUS      RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        hello-cronjob-1655452800-4q9kk   0/1     Completed   0          58s   10.40.0.1   k8s-node-2   <none>           <none>
+
+        [root@k8s-master ~]# kubectl logs hello-cronjob-1655452800-4q9kk
+        Fri Jun 17 08:00:18 UTC 2022
+        Hello from the kubernetes cluster!
+
+--------------------------------------------------------------------------------------------------------------------------------------
+------------------------------------------------------- 第6章 Kubernetes Service 概念和案例 -------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+Service 类型分为 4种: ExternalName、ClusterIP、NodePort 和 LoadBalancer; 默认为 ClusterIP
+
+ClusterIP
+    1、创建 deployment 和 service 相关的 yaml 文件 nginx-deployment.yaml 和 nginx-deployment-service.yaml
+
+    2、根据配置文件 创建 deployment
+        [root@k8s-master ~]# kubectl create -f /home/chapter_06/nginx-deployment.yaml
+
+    3、根据配置文件 创建 service
+        [root@k8s-master ~]# kubectl create -f /home/chapter_06/nginx-deployment-service.yaml
+
+    4、查询 deployment 和 service 相关的信息
+        [root@k8s-master ~]# kubectl get deployment
+        NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+        nginx-deployment   3/3     3            3           16s
+
+        [root@k8s-master ~]# kubectl get replicaset -o wide
+        NAME                          DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES   SELECTOR
+        nginx-deployment-7fb9dfd66f   3         3         3       42s   nginx        nginx    name=nginx,pod-template-hash=7fb9dfd66f
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME                                READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        nginx-deployment-7fb9dfd66f-84l5d   1/1     Running   0          48s   10.34.0.2   k8s-node-3   <none>           <none>
+        nginx-deployment-7fb9dfd66f-8drgm   1/1     Running   0          48s   10.40.0.1   k8s-node-2   <none>           <none>
+        nginx-deployment-7fb9dfd66f-pq5bt   1/1     Running   0          48s   10.32.0.3   k8s-node-1   <none>           <none>
+
+        [root@k8s-master ~]# kubectl get service -o wide
+        NAME            TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)   AGE   SELECTOR
+        kubernetes      ClusterIP   10.96.0.1       <none>        443/TCP   78s   <none>
+        nginx-service   ClusterIP   10.97.109.223   <none>        80/TCP    23s   name=nginx
+
+    5、测试 clusterIP 虚拟出来的 IP 是否起作用?
+        [root@k8s-master ~]# curl 10.97.109.223
+        <!DOCTYPE html>
+        <html>
+        <head>
+        <title>Welcome to nginx!</title>
+        <style>
+        html { color-scheme: light dark; }
+        body { width: 35em; margin: 0 auto;
+        font-family: Tahoma, Verdana, Arial, sans-serif; }
+        </style>
+        </head>
+        <body>
+        <h1>Welcome to nginx!</h1>
+        <p>If you see this page, the nginx web server is successfully installed and
+        working. Further configuration is required.</p>
+
+        <p>For online documentation and support please refer to
+        <a href="http://nginx.org/">nginx.org</a>.<br/>
+        Commercial support is available at
+        <a href="http://nginx.com/">nginx.com</a>.</p>
+
+        <p><em>Thank you for using nginx.</em></p>
+        </body>
+        </html>
+
+NodePort
+    1、创建 deployment 和 service 相关的 yaml 文件 nginx-deployment.yaml 和 nginx-node-port-service.yaml
+
+    2、根据配置文件 创建 deployment
+        [root@k8s-master ~]# kubectl create -f /home/chapter_06/nginx-deployment.yaml
+        deployment.extensions/nginx-deployment created
+
+
+    3、根据配置文件 创建 service
+        [root@k8s-master ~]# kubectl create -f /home/chapter_06/nginx-node-port-service.yaml
+        service/nginx-node-port created
+
+    4、查询 deployment 和 service 相关的信息
+        [root@k8s-master ~]# kubectl get deployment
+        NAME               READY   UP-TO-DATE   AVAILABLE   AGE
+        nginx-deployment   3/3     3            3           10s
+
+        [root@k8s-master ~]# kubectl get replicaset -o wide
+        NAME                          DESIRED   CURRENT   READY   AGE   CONTAINERS   IMAGES   SELECTOR
+        nginx-deployment-7fb9dfd66f   3         3         3       14s   nginx        nginx    name=nginx,pod-template-hash=7fb9dfd66f
+
+        [root@k8s-master ~]# kubectl get pods -o wide
+        NAME                                READY   STATUS    RESTARTS   AGE   IP          NODE         NOMINATED NODE   READINESS GATES
+        nginx-deployment-7fb9dfd66f-5svfz   1/1     Running   0          18s   10.40.0.1   k8s-node-2   <none>           <none>
+        nginx-deployment-7fb9dfd66f-6rjl6   1/1     Running   0          18s   10.32.0.3   k8s-node-1   <none>           <none>
+        nginx-deployment-7fb9dfd66f-82wvt   1/1     Running   0          18s   10.34.0.2   k8s-node-3   <none>           <none>
+
+        [root@k8s-master ~]# kubectl get service -o wide
+        NAME              TYPE        CLUSTER-IP      EXTERNAL-IP   PORT(S)        AGE   SELECTOR
+        kubernetes        ClusterIP   10.96.0.1       <none>        443/TCP        79s   <none>
+        nginx-node-port   NodePort    10.110.66.209   <none>        80:31357/TCP   19s   name=nginx
+
+    5、测试 外部暴露端口号是否能够使用
+        http://192.168.188.44:31357
+        http://192.168.188.46:31357
+        http://192.168.188.47:31357
+        http://192.168.188.48:31357
+
+
+LoadBalancer:
+    需要 kubernetes 集群 + NodePort Service + LoadBalancer (收费)
+
+ExternalName:
+    1、创建 相关的 yaml 文件 nginx-externalname-service.yaml
+
+    2、根据 yaml 创建 service
+
+    3、查询相关 service
+
+
+Ingress HTTP 7层网络协议路由, 之前的 service 的路由都是 基于 NAT, NAPT 之类的路由模式!
+
+    基础: 我们 知道 service 是工作在 IP:PORT 层的, 即 TCP/IP层; ingress 是基于应用层的且是针对 HTTP 协议的!
+
+    ingress 组成: ingress 策略定义 + ingress controller;
+
+    ingress nginx 案例: 不举例了, 因为比较复杂, 也没有这个精力, 以后有时间再补上!
+
+
+--------------------------------------------------------------------------------------------------------------------------------------
+-------------------------------------------------------- 第7章 Kubernetes 存储卷的概念和使用  -------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+Configmap, Secret, Volume, Persistent Volume 四种存储方案!
+
+ConfigMap 三种创建方式: 使用 key-value 创建; 使用文件创建; 使用目录创建!
+
+    创建命令格式: kubectl create configmap NAME [--from-file=[key=]source] [--from-literal=key1=value1] [--dry-run] [options]
+
+    1、使用目录创建:
+        [root@k8s-master ~]# kubectl create configmap mine-config --from-file=/home/chapter_07/configmap/
+        configmap/mine-config created
+
+        [root@k8s-master ~]# kubectl get configmap
+        NAME          DATA   AGE
+        mine-config   2      11s
+
+        [root@k8s-master ~]# kubectl get configmap mine-config -o yaml
+        apiVersion: v1
+        data:
+          game.properties: |
+            user.name=root
+            user.pass=123456
+          ui.properties: |
+            color.good=red
+            color.bad=yellow
+        kind: ConfigMap
+        metadata:
+          creationTimestamp: "2022-06-21T14:25:37Z"
+          name: mine-config
+          namespace: default
+          resourceVersion: "1492202"
+          selfLink: /api/v1/namespaces/default/configmaps/mine-config
+          uid: 04d6b04b-f16e-11ec-9f88-000c296c1229
+
+        [root@k8s-master ~]# kubectl describe configmap mine-config
+        Name:         mine-config
+        Namespace:    default
+        Labels:       <none>
+        Annotations:  <none>
+
+        Data
+        ====
+        game.properties:
+        ----
+        user.name=root
+        user.pass=123456
+
+        ui.properties:
+        ----
+        color.good=red
+        color.bad=yellow
+
+        Events:  <none>
+
+
+    2、使用文件创建:
+        [root@k8s-master ~]# kubectl create configmap game-config --from-file=/home/chapter_07/configmap/game.properties
+        configmap/game-config created
+
+        [root@k8s-master ~]# kubectl get configmap
+        NAME          DATA   AGE
+        game-config   1      10s
+        mine-config   2      66s
+
+        [root@k8s-master ~]# kubectl describe configmap game-config
+        Name:         game-config
+        Namespace:    default
+        Labels:       <none>
+        Annotations:  <none>
+
+        Data
+        ====
+        game.properties:
+        ----
+        user.name=root
+        user.pass=123456
+
+        Events:  <none>
+
+        [root@k8s-master ~]# kubectl get configmap game-config -o json
+        {
+            "apiVersion": "v1",
+            "data": {
+                "game.properties": "user.name=root\nuser.pass=123456\n"
+            },
+            "kind": "ConfigMap",
+            "metadata": {
+                "creationTimestamp": "2022-06-21T14:33:36Z",
+                "name": "game-config",
+                "namespace": "default",
+                "resourceVersion": "1492955",
+                "selfLink": "/api/v1/namespaces/default/configmaps/game-config",
+                "uid": "22c0c9e8-f16f-11ec-9f88-000c296c1229"
+            }
+        }
+
+
+    3、使用 key-value 创建:
+        [root@k8s-master ~]# kubectl create configmap special-config --from-literal=username=zhangsan --from-literal=password=123456
+        configmap/special-config created
+
+        [root@k8s-master ~]# kubectl get configmap special-config -o yaml
+        apiVersion: v1
+        data:
+          password: "123456"
+          username: zhangsan
+        kind: ConfigMap
+        metadata:
+          creationTimestamp: "2022-06-21T14:40:10Z"
+          name: special-config
+          namespace: default
+          resourceVersion: "1493577"
+          selfLink: /api/v1/namespaces/default/configmaps/special-config
+          uid: 0d6b1617-f170-11ec-9f88-000c296c1229
+
+        [root@k8s-master ~]# kubectl get configmap special-config -o json
+        {
+            "apiVersion": "v1",
+            "data": {
+                "password": "123456",
+                "username": "zhangsan"
+            },
+            "kind": "ConfigMap",
+            "metadata": {
+                "creationTimestamp": "2022-06-21T14:40:10Z",
+                "name": "special-config",
+                "namespace": "default",
+                "resourceVersion": "1493577",
+                "selfLink": "/api/v1/namespaces/default/configmaps/special-config",
+                "uid": "0d6b1617-f170-11ec-9f88-000c296c1229"
+            }
+        }
+
+    ConfigMap 在 pod 中的应用: (配合上面的 special-config 使用)
+        1、首先创建 yaml 文件 myapp-pod.yaml 文件
+
+        2、根据文件 创建 pod
+            [root@k8s-master ~]# kubectl create -f /home/chapter_07/myapp-pod.yaml
+
+        3、查看下打印的日志:
+            [root@k8s-master ~]# kubectl logs myapp-pod
+            username: zhangsan, password: 123456
+
+    ConfigMap 的热更新问题:
+        1、 以 env 作为使用场景的时候 是不能 进行实时更新的!
+        2、 以 volume 作为使用场景的时候 能够进行实时更新(10s左右之后再进行查询)
+
+
+Secret:
+    存在意义: 解决了 加密相关的 ca.crt, namespace, token
+    有三种类型: Service Account, Opaque, kubernetes.io/dokcerconfigjson
+
+    Service Account:
+        会自动挂在到: /run/secrets/kubernetes.io/serviceaccount 目录下!
+
+        [root@k8s-master ~]# kubectl create -f /home/chapter_07/secret-service-account-pod.yaml
+        pod/secret-service-account-pod created
+
+        [root@k8s-master ~]# kubectl get pods
+        NAME                         READY   STATUS    RESTARTS   AGE
+        secret-service-account-pod   1/1     Running   0          4s
+
+        [root@k8s-master ~]# kubectl exec secret-service-account-pod -it -- /bin/sh
+        sh-4.2# cd /run/secrets/kubernetes.io/serviceaccount
+
+        sh-4.2# ls
+        ca.crt  namespace  token
+
+        可以 cat 查看 ca.crt, namespace, token
+
+    Opaque:
+        数据类型是一个 map 类型, 其中的 value 值是以 base64 伪随机数生成器 生成的加密结果!
+        username: YWRtaW4=
+        password: MTIzNDU2
+
+        [root@k8s-master ~]# echo -n "admin" | base64
+        YWRtaW4=
+        [root@k8s-master ~]# echo -n "YWRtaW4=" | base64 -d
+        admin
+
+        [root@k8s-master ~]# echo -n "123456" | base64
+        MTIzNDU2
+        [root@k8s-master ~]# echo -n "MTIzNDU2" | base64 -d
+        123456
+
+        创建一个 yaml 文件 测试以下:
+        1、 创建 secret-opaque.yaml 文件
+
+        2、根据文件创建 secret
+            [root@k8s-master ~]# kubectl create -f /home/chapter_07/secret-opaque.yaml
+            secret/secret-opaque created
+
+            [root@k8s-master ~]# kubectl get secret
+            NAME                  TYPE                                  DATA   AGE
+            default-token-v5l7t   kubernetes.io/service-account-token   3      24d
+            secret-opaque         Opaque                                2      20s
+
+        3、查询 secret
+            [root@k8s-master ~]# kubectl describe secret secret-opaque
+            Name:         secret-opaque
+            Namespace:    default
+            Labels:       <none>
+            Annotations:  <none>
+
+            Type:  Opaque
+
+            Data
+            ====
+            username:  5 bytes
+            password:  6 bytes
+
+
+Volume: 持久化操作! 在 docker 中也有数据卷的概念! docker 中的数据如果存储与 container 中, 如果 容器一旦宕掉, 则数据会丢失! 这就涉及到 数据共享的问题!
+
+    emptyDir:
+        跟随 pod 的生命周期而存在!
+
+        1、创建 volume-emptydir-pod.yaml
+
+        2、根据 文件创建相关的 pod
+            [root@k8s-master ~]# kubectl create -f /home/chapter_07/volume-emptydir-pod.yaml
+            pod/emptydir-pod created
+
+        3、查询 pods 相关的东西, 并且可以测试 在 容器 centos1, centos2 之间 共享数据 index.html
+            [root@k8s-master ~]# kubectl get pods
+            NAME           READY   STATUS    RESTARTS   AGE
+            emptydir-pod   2/2     Running   0          3s
+
+            [root@k8s-master ~]# kubectl describe pod emptydir-pod
+            Name:               emptydir-pod
+            Namespace:          default
+            Priority:           0
+            PriorityClassName:  <none>
+            Node:               k8s-node-2/192.168.188.47
+            Start Time:         Wed, 22 Jun 2022 22:21:59 +0800
+            Labels:             app=emptydir-pod
+                                version=v1
+            Annotations:        <none>
+            Status:             Running
+            IP:                 10.40.0.1
+            Containers:
+              centos1:
+                Container ID:  docker://c102cd09bb8b5a3d7f18e8504c546bc61fc7aa1e698ea0ec409247312d8b9a30
+                Image:         centos:7
+                Image ID:      docker-pullable://centos@sha256:9d4bcbbb213dfd745b58be38b13b996ebb5ac315fe75711bd618426a630e0987
+                Port:          <none>
+                Host Port:     <none>
+                Command:
+                  /bin/sh
+                  -c
+                  while true; do sleep 5; done
+                State:          Running
+                  Started:      Wed, 22 Jun 2022 22:22:00 +0800
+                Ready:          True
+                Restart Count:  0
+                Environment:    <none>
+                Mounts:
+                  /cache from cache-volume (rw)
+                  /var/run/secrets/kubernetes.io/serviceaccount from default-token-v5l7t (ro)
+              centos2:
+                Container ID:  docker://9fcb91d26590cf65735f35433590d4942cfc8ced36834290be96429e4cf3bab9
+                Image:         centos:7
+                Image ID:      docker-pullable://centos@sha256:9d4bcbbb213dfd745b58be38b13b996ebb5ac315fe75711bd618426a630e0987
+                Port:          <none>
+                Host Port:     <none>
+                Command:
+                  /bin/sh
+                  -c
+                  while true; do sleep 5; done
+                State:          Running
+                  Started:      Wed, 22 Jun 2022 22:22:00 +0800
+                Ready:          True
+                Restart Count:  0
+                Environment:    <none>
+                Mounts:
+                  /test from cache-volume (rw)
+                  /var/run/secrets/kubernetes.io/serviceaccount from default-token-v5l7t (ro)
+            Conditions:
+              Type              Status
+              Initialized       True
+              Ready             True
+              ContainersReady   True
+              PodScheduled      True
+            Volumes:
+              cache-volume:
+                Type:       EmptyDir (a temporary directory that shares a pod's lifetime)
+                Medium:
+                SizeLimit:  <unset>
+              default-token-v5l7t:
+                Type:        Secret (a volume populated by a Secret)
+                SecretName:  default-token-v5l7t
+                Optional:    false
+            QoS Class:       BestEffort
+            Node-Selectors:  <none>
+            Tolerations:     node.kubernetes.io/not-ready:NoExecute for 300s
+                             node.kubernetes.io/unreachable:NoExecute for 300s
+            Events:
+              Type    Reason     Age   From                 Message
+              ----    ------     ----  ----                 -------
+              Normal  Scheduled  15s   default-scheduler    Successfully assigned default/emptydir-pod to k8s-node-2
+              Normal  Pulled     14s   kubelet, k8s-node-2  Container image "centos:7" already present on machine
+              Normal  Created    14s   kubelet, k8s-node-2  Created container centos1
+              Normal  Started    14s   kubelet, k8s-node-2  Started container centos1
+              Normal  Pulled     14s   kubelet, k8s-node-2  Container image "centos:7" already present on machine
+              Normal  Created    14s   kubelet, k8s-node-2  Created container centos2
+              Normal  Started    14s   kubelet, k8s-node-2  Started container centos2
+
+            [root@k8s-master ~]# kubectl exec emptydir-pod -c centos1 -it -- /bin/sh
+            sh-4.2# cd /cache/
+            sh-4.2# ls
+            sh-4.2#
+            sh-4.2# date >> index.html              # TODO 在 centos1 中写入 index.html
+            sh-4.2# date >> index.html              # TODO 在 centos1 中写入 index.html
+
+            [root@k8s-master ~]# kubectl exec emptydir-pod -c centos2 -it -- /bin/sh
+            sh-4.2# cd /test/
+            sh-4.2# ls
+            index.html
+
+            sh-4.2# cat index.html                  # TODO 在 centos2 中查看 index.html
+            Wed Jun 22 14:28:59 UTC 2022
+            Wed Jun 22 14:29:02 UTC 2022
+
+
+    hostPath:
+        1、创建 yaml 文件 volume-hostpath-pod.yaml
+
+        2、根据 yaml 文件创建相关的 pod
+            [root@k8s-master ~]# kubectl create -f /home/chapter_07/volume-hostpath-pod.yaml
+            pod/hostpath-pod created
+
+
+        3、查询并测试 共享数据卷
+            [root@k8s-master ~]# kubectl get pods -o wide
+            NAME           READY   STATUS    RESTARTS   AGE     IP          NODE         NOMINATED NODE   READINESS GATES
+            hostpath-pod   2/2     Running   0          4m58s   10.40.0.1   k8s-node-2   <none>           <none>
+
+            TODO: (下面是验证 hostPath 是否成功的)
+            查询 centos1 容器中的目录 /data1 和 centos2 容器中的目录 /data2  以及 k8s-node-2 中的 /data 目录!
+            [root@k8s-master ~]# kubectl exec hostpath-pod -c centos1 -it -- /bin/sh
+            [root@k8s-master ~]# kubectl exec hostpath-pod -c centos2 -it -- /bin/sh
+
+            [root@k8s-node-2 ~]# cd /data/
+
+PersistentVolume (PV) 和 PersistentVolumeClaim (PVC)
+
+    PV 和 PVC 不会随着 pod 的删除而丢失, 这就是持久化数据卷的特点!
+
+    PV分类:
+        静态PV
+        动态PV (成本有点高)
+
+    PVC 和 PV 的绑定: 是一对一的绑定关系!
+
+    PV 相关的概念:
+        访问策略 (accessModes):
+            ReadWriteOnce: 单个 node 节点
+                该卷可以由单个节点以读写方式安装. ReadWriteOnce 访问模式仍然可以允许多个 pod 在同一节点上运行时访问卷.
+
+            ReadOnlyMany:  多个 node 节点
+                该卷可以被许多节点以只读方式安装.
+                
+            ReadWriteMany
+                该卷可以被许多节点以读写方式安装.
+                
+            ReadWriteOncePod
+                该卷可以由单个 Pod 以读写方式挂载. 如果要确保整个集群中只有一个 pod 可以读取或写入 PVC, 请使用 ReadWriteOncePod 访问模式. 这仅支持 CSI 卷和 Kubernetes 1.22+ 版本.
+                 
+
+        回收策略 (persistentVolumeReclaimPolicy):
+        
+            # 保留 -- 手动回收 
+            Retain -- manual reclamation
+                              
+            # 回收 -- 基本清理 (rm -rf /thevolume/*)
+            Recycle -- basic scrub (rm -rf /thevolume/*)       
+            
+            # 删除 -- 关联的存储资产, 例如 AWS EBS、GCE PD、Azure 磁盘或 OpenStack Cinder 卷被删除
+            Delete -- associated storage asset such as AWS EBS, GCE PD, Azure Disk, or OpenStack Cinder volume is deleted
+            
+            # 目前, 只有 NFS 和 HostPath 支持回收. AWS EBS、GCE PD、Azure Disk 和 Cinder 卷支持删除.
+            Currently, only NFS and HostPath support recycling. AWS EBS, GCE PD, Azure Disk, and Cinder volumes support deletion.
+            
+            
+    案例演示:
+        1、首先在 master 节点安装 NFS 服务
+            yum install -y nfs-common nfs-utils rpcbind
+            mkdir /nfsdata
+            chmod 774 /nfsdata
+            chown nfsnobody /nfsdata
+
+            # 编辑 /etc/exports 文件
+            vim /etc/exports
+            /nfsdata *(rw, no_root_squash, no_all_squash, sync)
+
+            systemctl start rpcbind
+            systemctl start nfs
+
+        2、在所有 node 节点安装 nfs
+            yum install -y nfs-common nfs-utils rpcbind
+
+        2、部署 PV
+
+
+        3、
+           
+
+--------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------- 第9章 Kubernetes Helm 组件的使用  -------------------------------------------
+--------------------------------------------------------------------------------------------------------------------------------------
+Helm: chart 和 release 之间的关系 类似于: docker images 和 docker instance 之间的关系!
+
+Helm 安装: (master节点 和 node节点)
+    官方参考地址: https://helm.sh/docs/intro/install/
+
+    下载并安装:
+        cd /home/linux_libs/
+        wget https://get.helm.sh/helm-v2.13.1-linux-amd64.tar.gz
+        tar -zxvf helm-v2.13.1-linux-amd64.tar.gz
+        mv linux-amd64/ /home/
+
+    配置环境变量
+        vim /etc/profile
+
+        # helm 环境变量
+        export HELM_HOME=/home/linux-amd64
+        export PATH=$PATH:$HELM_HOME
+
+        source /etc/profile
+
+    创建 ServiceAccount 相关的 helm-rbac-config.yaml
+
+    根据 yaml 文件创建 secret
+        [root@k8s-master ~]# kubectl create -f /home/chapter_09/helm-rbac-config.yaml
+
+    查看 创建的secret
+        [root@k8s-master ~]# kubectl get secret tiller-token-x7q56 -n kube-system
+        NAME                 TYPE                                  DATA   AGE
+        tiller-token-x7q56   kubernetes.io/service-account-token   3      2m31s
+
+        [root@k8s-master ~]# kubectl get pods -n kube-system
+        NAME                                 READY   STATUS             RESTARTS   AGE
+        coredns-6897bd7b5-2cch6              1/1     Running            4          28d
+        coredns-6897bd7b5-nmsgn              1/1     Running            4          28d
+        etcd-k8s-master                      1/1     Running            4          28d
+        kube-apiserver-k8s-master            1/1     Running            4          28d
+        kube-controller-manager-k8s-master   1/1     Running            4          28d
+        kube-proxy-27d4p                     1/1     Running            1          28d
+        kube-proxy-msljx                     1/1     Running            1          28d
+        kube-proxy-trjm8                     1/1     Running            4          28d
+        kube-proxy-vfhcv                     1/1     Running            2          28d
+        kube-scheduler-k8s-master            1/1     Running            4          28d
+        tiller-deploy-8458f6c667-k4jcv       0/1     ImagePullBackOff   0          5m27s        # tiller 进行拉取失败!
+        weave-net-6z6tv                      2/2     Running            11         28d
+        weave-net-fvhjs                      2/2     Running            2          28d
+        weave-net-fwxwc                      2/2     Running            2          28d
+        weave-net-sh49c                      2/2     Running            5          28d
+
+    解决镜像拉取失败问题 (各个node节点):
+        docker pull hekai/gcr.io_kubernetes-helm_tiller_v2.13.1:latest
+        docker tag hekai/gcr.io_kubernetes-helm_tiller_v2.13.1 gcr.io/kubernetes-helm/tiller:v2.13.1
+        docker rmi hekai/gcr.io_kubernetes-helm_tiller_v2.13.1
+
+    tiller 集群部署:
+        [root@k8s-master ~]# helm init --service-account tiller --skip-refresh
+        Creating /home/linux-amd64/repository
+        Creating /home/linux-amd64/repository/cache
+        Creating /home/linux-amd64/repository/local
+        Creating /home/linux-amd64/plugins
+        Creating /home/linux-amd64/starters
+        Creating /home/linux-amd64/cache/archive
+        Creating /home/linux-amd64/repository/repositories.yaml
+        Adding stable repo with URL: https://kubernetes-charts.storage.googleapis.com
+        Adding local repo with URL: http://127.0.0.1:8879/charts
+        $HELM_HOME has been configured at /home/linux-amd64.
+
+        Tiller (the Helm server-side component) has been installed into your Kubernetes Cluster.
+
+        Please note: by default, Tiller is deployed with an insecure 'allow unauthenticated users' policy.
+        To prevent this, run `helm init` with the --tiller-tls-verify flag.
+        For more information on securing your installation see: https://docs.helm.sh/using_helm/#securing-your-helm-installation
+        Happy Helming!
+
+        # 查看 helm 版本信息
+        [root@k8s-master ~]# helm version
+        Client: &version.Version{SemVer:"v2.13.1", GitCommi˙t:"618447cbf203d147601b4b9bd7f8c37a5d39fbb4", GitTreeState:"clean"}
+        Server: &version.Version{SemVer:"v2.13.1", GitCommit:"618447cbf203d147601b4b9bd7f8c37a5d39fbb4", GitTreeState:"clean"}
+
+
+Helm 自定义模板:
+
+    # 创建自描述文件 Chart.yaml, 这个文件必须有 name 和 version 定义
+        mkdir -p /home/chapter_09/helm/templates    # 必须包含有 templates 目录这个规则!
+        cd /home/chapter_09/helm/templates
+
+        vim Chart.yaml
+        name: hello-world
+        version: 1.0.0
+
+    # 创建模板文件, 用于生成 kubernetes 资源清单 (manifests)
+        cd /home/chapter_09/helm/templates
+
+        vim hello-world-deployment.yaml
+        apiVersion: extensions/v1beta1
+          kind: Deployment
+          metadata:
+            name: hello-world
+          spec:
+            replicas: 1
+            template:
+              metadata:
+                labels:
+                  app: hello-world
+              spec:
+                containers:
+                - name: hello-world
+                  image: nginx
+                  ports:
+                  - containerPort: 8080
+                    protocol: TCP
+
+        vim hello-world-service.yaml
+        apiVersion: v1
+        kind: Service
+        metadata:
+          name: hello-world
+        spec:
+          type: NodePort
+          ports:
+          - port: 8080
+            targetPort: 8080
+            protocol: TCP
+          selector:
+            app: hello-world
+
+    # 创建模板
+    cd /home/chapter_09/helm/templates
+    helm install .
+
+

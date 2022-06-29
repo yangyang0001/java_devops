@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: external-name-service         # Service 的名称
+  labels:
+    name: external-name-service       # Service 的标签
+spec:
+  type: ExternalName
+  externalName: www.mine.k8s.com

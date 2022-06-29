@@ -407,7 +407,10 @@ TODO 这种安装方式 虽然启动了集群但是, docker 版本有冲突, 一
         # k8s禁用掉交换分区
         # /dev/mapper/centos-swap swap                    swap    defaults        0 0
 
-    5、重启机器!
+    5、安装 dig 命令
+        yum -y install bind-utils
+
+    6、重启机器!
 
 
 [master 节点] 安装 kubeadm 和相关工具 :
@@ -747,6 +750,7 @@ TODO 这种安装方式 虽然启动了集群但是, docker 版本有冲突, 一
 
         3、安装部署
             [root@k8s-master ~]# kubectl create -f /home/chapter_02/recommended.yaml
+            [root@k8s-master ~]# kubectl create -f /home/chapter_02/recommended.yaml --validate=false
 
         4、查看 namespace 下的 kubernetes-dashboard下的资源
             [root@k8s-master ~]# kubectl get pod,svc -n kubernetes-dashboard
